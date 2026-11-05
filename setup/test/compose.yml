@@ -1,0 +1,22 @@
+# The installer test harness: one privileged docker:dind "host" that the
+# tests treat as a fresh install server. setup/test/run.sh drives it.
+name: bwat-installer-test
+
+services:
+  host:
+    build: .
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    volumes:
+      # The inner Engine's images survive between runs; each test file
+      # resets the inner containers and volumes itself.
+      - docker-cache:/var/lib/docker
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 1s
+      timeout: 5s
+      retries: 60
+
+volumes:
+  docker-cache:

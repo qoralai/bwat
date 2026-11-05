@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# setup/plugin: connects this computer's Claude Code to this bwat (./bwat plugin).
+#
+#   ./bwat plugin            adds (or refreshes) the marketplace and installs (or updates) the
+#                            bwat plugin, pointed at this install; stops, saying so, with exit
+#                            code 3 when the plugin already points elsewhere
+#   ./bwat plugin --repoint  points an installed plugin at this install instead
+#   setup/plugin --print URL prints the two commands for a base URL, for setup's last box and
+#                            for teammates, who have no clone to run this from
+#
+# The base URL is the install's address plus /v1, read from .env; on this computer it is
+# 127.0.0.1, not localhost: the plugin accepts plain http only for 127.0.0.1.
+#
+# claude plugin install on a plugin already installed says so and is not documented to apply a
+# new --config, so a plugin pointed at another bwat is changed with claude plugin configure
+# --values-stdin (Claude Code's plugin CLI reference), and only when asked: that bwat's
+# sign-in stops working here.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+# The marketplace that lists the bwat plugin: the public marketplace.
+# web/test/claude-connect.test.ts keeps this, the board's, the admin panel's and the docs' equal.
+marketplace_repo=qoralai/qoral-plugin-marketplace
+marketplace=qoral-plugin-marketplace
+plugin=bwat@$marketplace
+
+commands() {
+  echo "claude plugin marketplace add $marketplace_repo"
+  echo "claude plugin install $plugin --config base_url=$1"
+}
+
+repoint=
+case "${1:-}" in
+  "") ;;
+  --repoint) repoint=1 ;;
+  --print) [ -n "${2:-}" ] || { echo "usage: setup/plugin --print BASE_URL" >&2; exit 2; }; commands "$2"; exit 0 ;;
+  *) echo "usage: ./bwat plugin [--repoint]" >&2; exit 2 ;;
+esac
+
+env_value() { grep -m1 "^$1=" .env 2>/dev/null | cut -d= -f2- || true; }
+url=$(env_value BWAT_PUBLIC_URL)
+if [ ! -f .env ] || [ -z "$url" ]; then
+  echo "bwat is not installed here yet: run ./bwat setup first, then ./bwat plugin." >&2
+  exit 2
+fi
+want=$url/v1
+if [[ $url =~ ^http://localhost(:[0-9]+)?$ ]]; then
+  want=http://127.0.0.1${BASH_REMATCH[1]}/v1
+fi
+
+if ! command -v claude > /dev/null; then
+  echo "Claude Code is not installed on this computer (no claude command). Install it, then run ./bwat plugin again. Or run these in a terminal that has it:" >&2
+  commands "$want" | sed 's/^/  /' >&2
+  exit 2
+fi
+
+# A marketplace this Claude Code already knows, from any source, is used as it is: adding it
+# again from another source is refused when the person's settings pin where it comes from.
+# A known one is refreshed, so an installed plugin can update to its latest release.
+if ! claude plugin marketplace list --json 2>/dev/null | grep -q "\"name\"[[:space:]]*:[[:space:]]*\"$marketplace\""; then
+  claude plugin marketplace add "$marketplace_repo"
+else
+  claude plugin marketplace update "$marketplace" || echo "Could not refresh the plugin marketplace; going on with the copy this computer has." >&2
+fi
+if claude plugin list --json 2>/dev/null | grep -q "\"$plugin\""; then
+  # An older plugin may lack what this bwat needs (sign-in with a code on this computer).
+  claude plugin update "$plugin" || echo "Could not update the bwat plugin; going on with the version installed." >&2
+  current=$(claude plugin configure "$plugin" --json 2>/dev/null \
+    | grep -o '"base_url"[[:space:]]*:[[:space:]]*"[^"]*"' | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/' || true)
+  if [ "$current" = "$want" ]; then
+    echo "Claude Code's bwat plugin already points at this bwat, $want."
+  elif [ -z "$repoint" ]; then
+    # An address it cannot read is left alone too: it may be another bwat's.
+    if [ -n "$current" ]; then
+      echo "Claude Code's bwat plugin points at another bwat, $current, not this one ($want)." >&2
+    else
+      echo "Claude Code's bwat plugin is installed, but bwat could not read which address it points at." >&2
+    fi
+    echo "To point it here, run ./bwat plugin --repoint in a terminal; your sign-in to the other bwat then stops working in Claude Code." >&2
+    # Its own code: the setup page shows this as a choice, not as a failure.
+    exit 3
+  else
+    printf '{"base_url":"%s"}\n' "$want" | claude plugin configure "$plugin" --values-stdin
+    echo "Pointed Claude Code's bwat plugin at $want${current:+ (it was $current)}."
+  fi
+else
+  claude plugin install "$plugin" --config "base_url=$want"
+fi
+echo "Restart Claude Code, then type /bwat:login to sign in, and /bwat:status to check it shows your account."

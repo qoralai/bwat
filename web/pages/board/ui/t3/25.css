@@ -1,0 +1,13 @@
+/* The meeting info strip and the meeting list's day headings. */
+/* The meeting info strip: no CONTEXT label any more, so the line leads. */
+.meeting-strip{justify-content:flex-start}
+/* the left column's meetings under one date heading per day. */
+#meeting-links .meeting-day{margin:10px 5px 0;font:600 11px var(--mono);letter-spacing:.04em;color:var(--muted)}
+#meeting-links a[data-meeting]:not([data-meeting="all"]){min-height:40px;padding:8px 10px}
+/* Zoom: the strip is one full-width line, cut short rather than wrapped. */
+body.surface-zoom .meeting-strip{display:block}
+body.surface-zoom #meeting-meta{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
+
+/* Zoom, live: the card writer's status is the meeting line. */
+#meta-status{flex:1 1 0;min-width:0}
+#meta-status .extraction-activity{display:inline;margin:0;padding:0;border:0;border-radius:0;background:none;color:var(--muted);font-size:12px}

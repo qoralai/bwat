@@ -1,0 +1,32 @@
+/* The Zoom surface's header. */
+.open-full,.viewer-name{display:none}
+body.surface-zoom .open-full{display:inline-flex;align-items:center;min-height:30px;padding:4px 11px;margin-left:auto;border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;text-decoration:none}
+body.surface-zoom .open-full:hover{border-color:var(--muted)}
+/* One row (9/29): with the theme toggle gone the Settings gear fits;
+   the name picker gives way first on a very narrow panel. */
+body.surface-zoom .app-header{flex-wrap:nowrap}
+/* Header pass (10/1): a smaller wordmark, one 10px gap, and the name
+   right-aligned beside the gear rather than adrift in the picker's 120px. */
+body.surface-zoom .app-header{gap:10px}
+body.surface-zoom .brand{font-size:21px;letter-spacing:-1px;gap:8px}
+body.surface-zoom .settings-open{width:36px;height:36px;min-width:36px;min-height:36px;margin-left:0}
+body.surface-zoom .viewer-label.locked{flex:0 0 auto}
+body.surface-zoom .viewer-label{flex:0 1 120px;min-width:0}
+/* Search always shown in Zoom (the details is held open by t3/32.js). */
+/* A Zoom-signed-in viewer: the name as text, no disabled select. */
+.viewer-label.locked select{display:none !important}
+.viewer-label.locked .viewer-name{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--ink);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Its initial, like the owner on a card (t3/32.js sets data-initial). */
+.viewer-label.locked .viewer-name::before{content:attr(data-initial);display:inline-grid;place-items:center;flex:none;width:24px;height:24px;border-radius:50%;background:#f6e1d7;font-size:11px;font-weight:650;color:var(--green)}
+/* 9/30: the tab already names the column and its count, so the heading
+   under it is kept for screen readers only. */
+body.surface-zoom .desk-column>header{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* 10/1: no rules around the Live pill and the card writer's status, or above the
+   raw transcript tail -- the panel's spacing already separates them. */
+body.surface-zoom .meeting-strip{border-top:0;border-bottom:0;padding:0;margin:4px 0 0}
+body.surface-zoom .list-end{border-top:0;padding-top:0;margin:0}
+body.surface-zoom .desk-footer{border-top:0;margin-top:16px;padding-top:0}
+/* 10/1: the same gap on every side of a column's cards. Stacked in
+   Zoom, desk.css's flex:1 0 290px became a 290px minimum HEIGHT, padding the
+   bottom of a short column; here a column is as tall as its cards. */
+body.surface-zoom .desk-column{flex:0 0 auto;margin-bottom:0}

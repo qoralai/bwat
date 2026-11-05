@@ -1,0 +1,11 @@
+[
+  {"name": "google-consent", "url": "https://console.cloud.google.com/auth/overview", "caption": "Google Auth Platform's first-time setup, with Audience set to Internal.", "labels": []},
+  {"name": "google-web-client", "url": "https://console.cloud.google.com/auth/clients", "caption": "A Google web client with bwat's origin and redirect address.", "labels": []},
+  {"name": "zoom-build-app", "url": "https://marketplace.zoom.us/", "caption": "Zoom App Marketplace: Develop (top right), then Build app.", "labels": [], "captured": "2026-11-04"},
+  {"name": "zoom-app-credentials", "url": "https://marketplace.zoom.us/", "caption": "The main app's Production App Credentials: Client ID and Client Secret.", "labels": []},
+  {"name": "zoom-sdk-download", "url": "https://marketplace.zoom.us/", "caption": "Features, Embed, Meeting SDK: the Linux x86_64 download.", "labels": [], "captured": "2026-11-01"},
+  {"name": "zoom-beta-test", "url": "https://marketplace.zoom.us/", "caption": "Production, Beta Test, Add app now.", "labels": []},
+  {"name": "zoom-apps-settings", "url": "https://zoom.us/", "caption": "Zoom web portal: Zoom Apps Quick Launch Button and Auto-open an app in meetings.", "labels": []},
+  {"name": "zoom-s2s-scopes", "url": "https://marketplace.zoom.us/", "caption": "The Server-to-Server app's three scopes.", "labels": []},
+  {"name": "openrouter-keys", "url": "https://openrouter.ai/keys", "caption": "OpenRouter Keys: Create Key.", "labels": []}
+]

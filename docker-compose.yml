@@ -1,0 +1,148 @@
+# Local stack: Postgres 16, a one-off db-bootstrap (the logins and the database), a one-off
+# migration as the owner role, the backend as the runtime role, the card service as its own
+# login, the web app, and the edge (Caddy, setup/Caddyfile) in front of all three.
+# `cp .env.docker.example .env`, fill it in, then `docker compose up -d --build`.
+# Postgres, the card service and the web app are not published to the host; the edge and the
+# backend listen on 127.0.0.1 only.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Over TCP: the image's first-start init runs a server on the socket only.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # The three logins and the bwat database, as the postgres superuser. Runs on every
+  # `up`: it keeps what exists and sets the passwords from .env again.
+  db-bootstrap:
+    build: ./backend
+    command: ["node", "dist/scripts/db-bootstrap.js"]
+    environment:
+      BWAT_DB_ADMIN_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
+      BWAT_OWNER_PASSWORD: ${BWAT_OWNER_PASSWORD:?set BWAT_OWNER_PASSWORD in .env}
+      BWAT_RUNTIME_PASSWORD: ${BWAT_RUNTIME_PASSWORD:?set BWAT_RUNTIME_PASSWORD in .env}
+      BWAT_CARDS_PASSWORD: ${BWAT_CARDS_PASSWORD:?set BWAT_CARDS_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  migrate:
+    build: ./backend
+    command: ["node", "dist/scripts/migrate.js"]
+    environment:
+      BWAT_OWNER_DB_URL: postgres://bwat_owner:${BWAT_OWNER_PASSWORD}@postgres:5432/bwat
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    restart: "no"
+
+  backend:
+    build: ./backend
+    environment:
+      BWAT_DB_URL: postgres://bwat_runtime:${BWAT_RUNTIME_PASSWORD}@postgres:5432/bwat
+      HOST: 0.0.0.0
+      PORT: "3000"
+      # Local stack only: the image is NODE_ENV=production, which refuses the dev token.
+      NODE_ENV: development
+      BWAT_DEV_PERSON_TOKEN: ${BWAT_DEV_PERSON_TOKEN:-}
+      BWAT_TEST_PEOPLE: ${BWAT_TEST_PEOPLE:-}
+      BWAT_GOOGLE_CLIENT_IDS: ${BWAT_GOOGLE_CLIENT_IDS:-}
+      # The plugin's sign-in client, handed to it at GET /v1/auth/desktop-client.
+      BWAT_GOOGLE_DESKTOP_CLIENT_ID: ${BWAT_GOOGLE_DESKTOP_CLIENT_ID:-}
+      BWAT_GOOGLE_DESKTOP_CLIENT_SECRET: ${BWAT_GOOGLE_DESKTOP_CLIENT_SECRET:-}
+      BWAT_ALLOWED_DOMAINS: ${BWAT_ALLOWED_DOMAINS:-}
+      # The tier (D202); on local no Google, and people sign in with the code whose sha256 this is.
+      BWAT_TIER: ${BWAT_TIER:-}
+      BWAT_SIGNIN_CODE_SHA256: ${BWAT_SIGNIN_CODE_SHA256:-}
+      BWAT_FIRST_OWNER_EMAIL: ${BWAT_FIRST_OWNER_EMAIL:-}
+      BWAT_ZOOM_WEBHOOK_SECRET: ${BWAT_ZOOM_WEBHOOK_SECRET:-}
+      BWAT_AUTO_JOIN: ${BWAT_AUTO_JOIN:-}
+      BWAT_AUTO_JOIN_REQUIRE_HOST: ${BWAT_AUTO_JOIN_REQUIRE_HOST:-}
+      BWAT_SECRET_STORE: ${BWAT_SECRET_STORE:-}
+      BWAT_ENC_KEY: ${BWAT_ENC_KEY:-}
+      BWAT_FEED_KEY: ${BWAT_FEED_KEY:-}
+      BWAT_CARDS_URL: http://cards:8000
+      BWAT_CARDS_BACKEND_TOKEN: ${BWAT_CARDS_BACKEND_TOKEN:?set BWAT_CARDS_BACKEND_TOKEN in .env}
+      BWAT_CARDS_MODEL_URL: ${BWAT_CARDS_MODEL_URL:-}
+      BWAT_CARDS_MODEL: ${BWAT_CARDS_MODEL:-}
+      BWAT_JEV: ${BWAT_JEV:-}
+      BWAT_PUBLIC_URL: ${BWAT_PUBLIC_URL:-}
+      BWAT_TRUST_PROXY: ${BWAT_TRUST_PROXY:-}
+      BWAT_RATE_LIMIT_SIGNIN_FAILURES_PER_MIN: ${BWAT_RATE_LIMIT_SIGNIN_FAILURES_PER_MIN:-}
+      BWAT_RATE_LIMIT_ZOOM_PER_MIN: ${BWAT_RATE_LIMIT_ZOOM_PER_MIN:-}
+      # Who may frame bwat besides Zoom, space-separated (backend README); Zoom alone when unset.
+      BWAT_FRAME_ANCESTORS: ${BWAT_FRAME_ANCESTORS:-}
+    ports:
+      - "127.0.0.1:${BWAT_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Follows every live bot and writes the cards; serves the board's card routes.
+  cards:
+    build: ./cards
+    environment:
+      BWAT_CARDS_DB_URL: postgres://bwat_cards:${BWAT_CARDS_PASSWORD}@postgres:5432/bwat
+      BWAT_BACKEND_URL: http://backend:3000
+      BWAT_CARDS_CREDENTIAL: ${BWAT_CARDS_CREDENTIAL:-}
+      BWAT_CARDS_BACKEND_TOKEN: ${BWAT_CARDS_BACKEND_TOKEN:?set BWAT_CARDS_BACKEND_TOKEN in .env}
+      # The board's routes pass the local stack's dev token on to the backend (QOR-4749).
+      BWAT_DEV_PERSON_TOKEN: ${BWAT_DEV_PERSON_TOKEN:-}
+      BWAT_CARDS_POLL_S: ${BWAT_CARDS_POLL_S:-}
+      BWAT_CARDS_MAX_CONCURRENT: ${BWAT_CARDS_MAX_CONCURRENT:-}
+    expose: ["8000"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # The board and the admin panel, with the Google sign-in layer. Any of the sign-in values
+  # empty: the pages still serve, sign-in answers 503 (the dev token still works on /v1).
+  web:
+    build: ./web
+    environment:
+      BWAT_PUBLIC_URL: ${BWAT_PUBLIC_URL:-}
+      # local: the board signs in with the install code, not Google (D202).
+      BWAT_TIER: ${BWAT_TIER:-}
+      BWAT_GOOGLE_CLIENT_ID: ${BWAT_GOOGLE_CLIENT_ID:-}
+      BWAT_GOOGLE_CLIENT_SECRET: ${BWAT_GOOGLE_CLIENT_SECRET:-}
+      BWAT_SESSION_SECRET: ${BWAT_SESSION_SECRET:-}
+      BWAT_BACKEND_URL: http://backend:3000
+      BWAT_VERSION: ${BWAT_VERSION:-}
+      BWAT_FRAME_ANCESTORS: ${BWAT_FRAME_ANCESTORS:-}
+      BWAT_TRUST_PROXY: ${BWAT_TRUST_PROXY:-}
+
+  edge:
+    image: caddy:2.10.2-alpine
+    volumes:
+      - ./setup/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "127.0.0.1:${BWAT_EDGE_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+      cards:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+volumes:
+  pgdata:

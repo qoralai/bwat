@@ -1,0 +1,985 @@
+#!/usr/bin/env bash
+# The self-host installer. Run from a clone as ./bwat (the launcher at the repo root).
+#
+#   ./bwat setup        asks for what it cannot generate, then installs
+#   ./bwat setup -y     takes every answer from the environment, asks nothing
+#   ./bwat setup --no-start   writes .env as setup would, then stops before starting bwat
+#   ./bwat setup --tier T     installs, or moves this install up, to tier T (D202): local (this
+#                       computer, no Google) or production
+#   ./bwat setup --new-code   on a local install, replaces the sign-in code and shows the new one once
+#   ./bwat setup --web  opens the onboarding page in a browser, which guides the install
+#                       (setup/onboard); it runs on a Node it finds or fetches
+#   ./bwat onboard mcp  the page's MCP server over stdio, for an LLM guiding the install
+#   ./bwat docs         regenerates docs/onboarding.md from docs/onboarding/master.md
+#                       (setup/onboard/generate.ts, on the Node the finder gives)
+#   ./bwat secret KEY   saves the clipboard to KEY's line in bwat.answers (setup/secret)
+#   ./bwat plugin       connects this computer's Claude Code to this install (setup/plugin)
+#
+# setup writes .env (mode 600): the answers, every generated secret and the
+# minted credentials. A value already in .env is kept, so a second run changes
+# nothing. Then it starts the stack under the compose project bwat. Every run
+# is logged to .bwat/logs/; no secret value is ever printed.
+set -euo pipefail
+# Git Bash on Windows would rewrite /-paths in docker arguments into Windows paths.
+export MSYS_NO_PATHCONV=1
+cd "$(dirname "$0")/.."
+
+usage() {
+  echo "usage: ./bwat prep [--check] | ./bwat docs | ./bwat secret KEY | ./bwat plugin [--repoint] | ./bwat setup [-y] [--no-start] [--tier local|production] [--new-code] | ./bwat setup --web | ./bwat onboard mcp" >&2
+  exit 2
+}
+# Runs one of setup/onboard's TypeScript files on the Node that setup/onboard/node finds.
+run_ts() {
+  local node
+  node=$(setup/onboard/node)
+  exec "$node" --experimental-strip-types --disable-warning=ExperimentalWarning "$@"
+}
+if [ "${1:-}" = prep ]; then
+  shift
+  exec setup/prep "$@"
+fi
+if [ "${1:-}" = docs ] && [ $# -eq 1 ]; then
+  run_ts setup/onboard/generate.ts
+fi
+if [ "${1:-}" = secret ]; then
+  shift
+  exec setup/secret "$@"
+fi
+if [ "${1:-}" = plugin ]; then
+  shift
+  exec setup/plugin "$@"
+fi
+# The setup page's MCP server, for Claude Code or Codex (.mcp.json): stdio, setup/onboard/mcp.ts.
+if [ "${1:-}" = onboard ] && [ "${2:-}" = mcp ] && [ $# -eq 2 ]; then
+  run_ts setup/onboard/mcp.ts
+fi
+[ "${1:-}" = setup ] || usage
+shift
+yes=
+no_start=
+web=
+tier_arg=
+new_code=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -y) yes=1 ;;
+    --no-start) no_start=1 ;;
+    --web) web=1 ;;
+    --new-code) new_code=1 ;;
+    --tier)
+      [ $# -ge 2 ] || usage
+      tier_arg=$2
+      shift
+      ;;
+    --tier=*) tier_arg=${1#--tier=} ;;
+    *) usage ;;
+  esac
+  shift
+done
+# The page runs the steps below itself, with -y once its answers are complete.
+if [ -n "$web" ]; then
+  [ -z "$yes$no_start$tier_arg$new_code" ] || usage
+  run_ts setup/onboard/server.ts
+fi
+tiers='^(local|production)$'
+if [ -n "$tier_arg" ] && [[ ! $tier_arg =~ $tiers ]]; then
+  echo "--tier must be local or production (got '$tier_arg')" >&2
+  exit 2
+fi
+
+# Docker first (QOR-5009): every step below needs it, and an engine that is off or too old
+# fails late and obscurely (compose's --wait came in Compose 2.1). Skipped by --no-start,
+# which only writes .env.
+if [ -z "$no_start" ]; then
+  if ! command -v docker > /dev/null 2>&1; then
+    echo "Docker is not installed. Install Docker Desktop (or Docker Engine with Compose), start it, then run ./bwat setup again." >&2
+    exit 2
+  fi
+  if ! docker version --format '{{.Server.Version}}' > /dev/null 2>&1; then
+    echo "Docker is not running: start Docker Desktop (or the Docker service), wait until it says it is running, then run ./bwat setup again." >&2
+    exit 2
+  fi
+  compose_version=$(docker compose version --short 2>/dev/null || true)
+  compose_version=${compose_version#v}
+  if [ -z "$compose_version" ]; then
+    echo "Docker Compose v2 is missing (docker compose version answers nothing). Update Docker Desktop, or install the compose plugin, then run ./bwat setup again." >&2
+    exit 2
+  fi
+  IFS=. read -r compose_major compose_minor _ <<< "$compose_version"
+  if [ "${compose_major:-0}" -lt 2 ] || { [ "${compose_major:-0}" -eq 2 ] && [ "${compose_minor:-0}" -lt 1 ]; }; then
+    echo "Docker Compose $compose_version is too old: bwat needs 2.1 or later. Update Docker Desktop, then run ./bwat setup again." >&2
+    exit 2
+  fi
+  # Rosetta hangs the bot build (step 4): said now, before any question, when the bot is to
+  # be built (no image, or one from another bot/ tree; see step 4).
+  built=$(docker image inspect -f '{{index .Config.Labels "bwat.bot-tree"}}' bwat-bot:zoom 2>/dev/null || true)
+  if [ -z "$built" ] || [ "$built" != "$(git rev-parse HEAD:bot 2>/dev/null || true)" ]; then
+    setup/docker-rosetta >&2 || exit 2
+  fi
+fi
+
+umask 077
+mkdir -p .bwat/logs
+log=.bwat/logs/setup-$(date -u +%Y%m%dT%H%M%SZ).log
+# Kept before the log takes stdout: the local sign-in code is shown on it once, never logged.
+exec 4>&1
+exec > >(tee -a "$log") 2>&1
+
+# .env's keys, in the order they are written.
+keys=(
+  COMPOSE_PROJECT_NAME COMPOSE_FILE COMPOSE_PATH_SEPARATOR COMPOSE_PROFILES
+  BWAT_TIER BWAT_MODE BWAT_PUBLIC_URL BWAT_PUBLIC_HOST BWAT_TLS BWAT_SECRET_STORE BWAT_ALLOWED_DOMAINS BWAT_PORT
+  BWAT_EDGE_PORT
+  BWAT_BOT_NAME BWAT_ZOOM_COMPANY BWAT_ZOOM_CONTACT_NAME BWAT_ZOOM_CONTACT_EMAIL BWAT_ZOOM_OWNER_NAME
+  BWAT_GOOGLE_CLIENT_ID BWAT_GOOGLE_CLIENT_SECRET BWAT_GOOGLE_DESKTOP_CLIENT_ID
+  BWAT_GOOGLE_DESKTOP_CLIENT_SECRET BWAT_GOOGLE_CLIENT_IDS BWAT_DEV_PERSON_TOKEN
+  BWAT_FIRST_OWNER_EMAIL BWAT_SIGNIN_CODE_SHA256
+  POSTGRES_PASSWORD BWAT_OWNER_PASSWORD BWAT_RUNTIME_PASSWORD BWAT_CARDS_PASSWORD
+  BWAT_ENC_KEY BWAT_FEED_KEY BWAT_CARDS_BACKEND_TOKEN BWAT_SESSION_SECRET
+  BWAT_FLEET_CREDENTIAL BWAT_CARDS_CREDENTIAL BWAT_JEV
+)
+# .env's values are kept as e_<KEY> variables and bwat.answers' as a_<KEY>: plain
+# variables rather than associative arrays, which macOS's bash 3.2 lacks.
+store() {
+  printf -v "e_$1" '%s' "$2"
+}
+saved_value() {
+  local name="e_$1"
+  printf '%s' "${!name:-}"
+}
+answer() {
+  local name="a_$1"
+  printf '%s' "${!name:-}"
+}
+
+if [ -f .env ]; then
+  # Split at the first =; a base64 value ends in = signs of its own.
+  while IFS= read -r line; do
+    key=${line%%=*}
+    [[ $key =~ ^[A-Z0-9_]+$ ]] && store "$key" "${line#*=}"
+  done < .env
+fi
+
+# bwat.answers (./bwat prep): what the person prepared before setup. Read, never
+# exported: compose would hand an exported name to a container.
+if [ -f bwat.answers ]; then
+  # A last line with no newline still counts; a Windows editor's \r is dropped.
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    key=${line%%=*}
+    [[ $line != \#* && $key =~ ^[A-Z0-9_]+$ ]] && printf -v "a_$key" '%s' "${line#*=}"
+  done < bwat.answers
+fi
+# Its Zoom credentials and model key go into JSON: plain tokens only, like a paste.
+for key in ZOOM_CLIENT_ID ZOOM_CLIENT_SECRET ZOOM_WEBHOOK_SECRET ZOOM_BOARD_CLIENT_SECRET ZOOM_S2S_ACCOUNT_ID \
+  ZOOM_S2S_CLIENT_ID ZOOM_S2S_CLIENT_SECRET OPENROUTER_API_KEY; do
+  value=$(answer "$key")
+  if [ -n "$value" ] && [[ ! $value =~ ^[A-Za-z0-9._~-]+$ ]]; then
+    echo "$key in bwat.answers: expected letters, digits and . _ ~ - only" >&2
+    exit 2
+  fi
+done
+
+# A value the person gave without being asked: the environment, else bwat.answers.
+given() {
+  if [ -n "${!1:-}" ]; then printf '%s' "${!1}"; else answer "$1"; fi
+}
+
+# The answer to one question. A given value is used as it is. With -y: else .env.
+# Otherwise the person is asked every run (a re-run may be correcting a typo), the
+# saved answer kept by Enter.
+ask() {
+  local name=$1 question=$2 secret=${3:-} value saved
+  saved=$(given "$name")
+  if [ -n "$saved" ]; then
+    store "$name" "$saved"
+    return
+  fi
+  saved=$(saved_value "$name")
+  if [ -n "$yes" ]; then
+    if [ -z "$saved" ]; then
+      echo "$name is required with -y" >&2
+      exit 2
+    fi
+    store "$name" "$saved"
+    return
+  fi
+  value=
+  while [ -z "$value" ]; do
+    if [ -n "$secret" ]; then
+      printf '%s' "$question${saved:+ (Enter keeps the saved one)}: " >&2; read -rs value
+      echo
+    else
+      printf '%s' "$question${saved:+ [current: $saved]}: " >&2; read -r value
+    fi
+    value=${value:-$saved}
+  done
+  store "$name" "$value"
+}
+
+# ask, then until the value matches the regex $3 and is at most $4 characters, say what
+# fits ($5) and ask again. A value from bwat.answers, the environment or -y is fixed where
+# it came from, so that one stops setup instead.
+ask_checked() {
+  local name=$1 question=$2 pattern=$3 max=$4 rule=$5 value var="e_$1"
+  ask "$name" "$question ($rule)"
+  value=${!var}
+  until [[ $value =~ $pattern ]] && [ "${#value}" -le "$max" ]; do
+    echo "$name must be $rule, at most $max characters (got '$value')" >&2
+    if [ -n "$yes" ] || [ -n "$(given "$name")" ]; then exit 2; fi
+    printf '%s' "$question ($rule): " >&2; read -r value
+  done
+  store "$name" "$value"
+}
+# Names Zoom shows go into a config file and JSON unescaped: plain characters only.
+plain='^[A-Za-z0-9][A-Za-z0-9 ._()-]*$'
+plain_rule='letters, digits, spaces and . _ ( ) - only; no comma, & or apostrophe'
+email_form='^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]+$'
+
+# True when a setting is still to be given (not in the environment or .env).
+unset_yet() {
+  [ -z "$(given "$1")" ] && [ -z "$(saved_value "$1")" ]
+}
+
+# A setting with a default nobody needs to be asked about.
+default() {
+  local name=$1 value saved
+  value=$(given "$name")
+  saved=$(saved_value "$name")
+  store "$name" "${value:-${saved:-$2}}"
+}
+
+# n random bytes as hex: URL-safe, so a password can sit in a postgres:// URL.
+generate() {
+  local name=$1 bytes=$2
+  [ -n "$(saved_value "$name")" ] || store "$name" "$(od -A n -t x1 -N "$bytes" /dev/urandom | tr -d ' \n')"
+}
+
+write_env() {
+  local key content=
+  for key in "${keys[@]}"; do content+="$key=$(saved_value "$key")"$'\n'; done
+  # Private even when nothing in it changes.
+  [ -f .env ] && chmod 600 .env
+  if [ -f .env ] && [ "$(cat .env; echo x)" = "${content}x" ]; then return; fi
+  printf '%s' "$content" > .env.tmp
+  mv .env.tmp .env
+  chmod 600 .env
+  echo "wrote .env"
+}
+
+# The steps match the install guide's, title for title.
+steps=7
+step() {
+  echo
+  echo "Step $1 of $steps: $2"
+}
+
+step 1 "Your address"
+# The tier (D202): production adds steps to local, and an install only moves up.
+#   local       this computer only: no Google, no public address; sign in with a code
+#   production  a cloud server at a public domain, with Zoom's meeting events and auto-join
+# BWAT_MODE follows from it: production is production mode, local developer mode.
+# The tier the settings given or saved imply, as before tiers: production mode, or no mode
+# and a certificate of its own, is production; anything else is local.
+derived_tier() {
+  local mode tls
+  mode=$(given BWAT_MODE)
+  mode=${mode:-$(saved_value BWAT_MODE)}
+  tls=$(given BWAT_TLS)
+  tls=${tls:-$(saved_value BWAT_TLS)}
+  if [ "$mode" = production ] || { [ -z "$mode" ] && [ "$tls" = caddy ]; }; then
+    echo production
+  else
+    echo local
+  fi
+}
+saved_tier=$(saved_value BWAT_TIER)
+given_tier=$(given BWAT_TIER)
+# The local tier was called t0 before QOR-5117: a value saved or given then still means local.
+if [ "$saved_tier" = t0 ] || [ "$given_tier" = t0 ]; then
+  echo "Tier t0 is now called local."
+  [ "$saved_tier" != t0 ] || saved_tier=local
+  [ "$given_tier" != t0 ] || given_tier=local
+fi
+[ -n "$saved_tier" ] || [ ! -f .env ] || saved_tier=$(derived_tier)
+tier=${tier_arg:-$given_tier}
+if [ -z "$tier" ]; then
+  if [ -n "$saved_tier" ]; then
+    # A setting given now (production mode, say) may imply production: never local.
+    tier=$saved_tier
+    [ "$(derived_tier)" != production ] || tier=production
+  elif [ -n "$yes" ] || [ -f bwat.answers ]; then
+    # The answers file is the person's choice already, read from what is filled in, and
+    # --tier overrides it.
+    tier=$(derived_tier)
+  else
+    cat <<EOF
+Where should bwat run? Production adds steps to local; move up later with
+./bwat setup --tier production.
+  local       Try it on this computer: no Google and no public address. You sign in
+              with a code setup shows you; bwat joins a meeting when you paste its link.
+  production  A cloud server at a public domain: bwat joins recorded meetings on its own.
+EOF
+    tier=$(derived_tier)
+    while :; do
+      printf '%s' "Which one? [$tier] " >&2
+      # No more input (a pipe or a closed terminal) stops setup instead of asking forever.
+      if ! read -r answer; then
+        echo >&2
+        echo "No tier given: run setup in a terminal, or give it as ./bwat setup --tier <name>." >&2
+        exit 2
+      fi
+      answer=${answer:-$tier}
+      [[ $answer =~ $tiers ]] && break
+      echo "local or production" >&2
+    done
+    tier=$answer
+  fi
+fi
+if [[ ! $tier =~ $tiers ]]; then
+  echo "BWAT_TIER must be local or production (got '$tier')" >&2
+  # An install saved before the team tiers were dropped carries on as production.
+  [[ $tier =~ ^(team|zoom-board)$ ]] && echo "Run ./bwat setup --tier production to carry this install on, or start a local install in a new folder." >&2
+  exit 2
+fi
+if [ "$saved_tier" = production ] && [ "$tier" = local ]; then
+  echo "This install is $saved_tier; a tier only adds steps, so it cannot go back to $tier. To start smaller, install in a new folder." >&2
+  exit 2
+fi
+e_BWAT_TIER=$tier
+if [ "$tier" = production ]; then e_BWAT_MODE=production; else e_BWAT_MODE=developer; fi
+case $tier in
+  local) echo "Tier: local, this computer only. You sign in with a code; bwat joins a meeting when you paste its link." ;;
+  production) echo "Tier: production, a cloud server at a public domain, with Zoom's meeting events and auto-join." ;;
+esac
+# The edge's port on this machine's loopback: the way in for a browser here and for
+# a tunnel or proxy. Never asked: the environment, else .env, else bwat.answers (prep
+# picked a free one), else 8080. One given in the environment is taken as is, with a
+# warning if busy (Docker then refuses the edge); any other that something else holds
+# moves to the next free port.
+port_form='^[1-9][0-9]{0,4}$'
+# The backend's loopback port, once saved: the edge can never share it.
+backend_port=${BWAT_PORT:-${e_BWAT_PORT:-}}
+# BWAT_TLS when already given or saved; the check after the TLS question is the backstop.
+tls_known=$(given BWAT_TLS)
+tls_known=${tls_known:-${e_BWAT_TLS:-}}
+# Why the port cannot be the edge's; nothing when it can.
+port_refused() {
+  if [[ ! $1 =~ $port_form ]] || [ "$1" -gt 65535 ]; then
+    echo "BWAT_EDGE_PORT must be a number from 1 to 65535 (got '$1')"
+  elif [ "$1" = "$backend_port" ]; then
+    echo "BWAT_EDGE_PORT cannot be $1, the backend's port (BWAT_PORT)"
+  elif [ "$tls_known" = caddy ] && [[ $1 =~ ^(80|443)$ ]]; then
+    echo "BWAT_EDGE_PORT cannot be 80 or 443 with BWAT_TLS=caddy: the edge serves the address on them"
+  fi
+}
+# Something answers on the port, and it is not this install's own edge.
+port_busy() {
+  (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null &&
+    [ "$(docker compose port edge 8080 2>/dev/null)" != "127.0.0.1:$1" ]
+}
+if [ -n "${BWAT_EDGE_PORT:-}" ]; then
+  edge_port=$BWAT_EDGE_PORT
+  refused=$(port_refused "$edge_port")
+  if [ -n "$refused" ]; then
+    echo "$refused" >&2
+    exit 2
+  fi
+  if port_busy "$edge_port"; then
+    echo "warning: port $edge_port is in use on this machine (not by bwat); Docker may refuse to start the edge"
+  fi
+else
+  edge_port=${e_BWAT_EDGE_PORT:-$(answer BWAT_EDGE_PORT)}
+  edge_port=${edge_port:-8080}
+  if [[ ! $edge_port =~ $port_form ]] || [ "$edge_port" -gt 65535 ]; then
+    port_refused "$edge_port" >&2
+    exit 2
+  fi
+  wanted=$edge_port
+  while [ -n "$(port_refused "$edge_port")" ] || port_busy "$edge_port"; do
+    edge_port=$((edge_port + 1))
+    if [ "$edge_port" -gt 65535 ]; then echo "No free port from $wanted up to 65535 on this machine." >&2; exit 2; fi
+  done
+  [ "$edge_port" = "$wanted" ] ||
+    echo "Port $wanted is in use on this machine (not by bwat); bwat uses $edge_port. A proxy or tunnel forwarding to $wanted must now forward to $edge_port."
+fi
+e_BWAT_EDGE_PORT=$edge_port
+
+local_url=http://localhost:$edge_port
+url=$(given BWAT_PUBLIC_URL)
+saved=${url:-${e_BWAT_PUBLIC_URL:-}}
+# A local install is this computer only: its address is always the local one, never asked.
+if [ "$tier" = local ]; then
+  if [ -n "$url" ] && [[ ! $url =~ ^http://localhost:[0-9]+/?$ ]]; then
+    echo "BWAT_TIER=local runs on this computer only, at $local_url; for a public address use --tier production (got '$url')" >&2
+    exit 2
+  fi
+  url=$local_url
+  saved=$local_url
+fi
+if [ -z "$saved" ]; then
+  cat <<EOF
+In production mode bwat's address is a public domain pointing at this server. Its
+HTTPS comes from one of:
+  - bwat itself, with ports 80 and 443 open: setup gets and renews the certificate.
+  - your cloud's load balancer or a proxy in front, forwarding to 127.0.0.1:$edge_port.
+Setup takes it as BWAT_PUBLIC_URL=https://<your domain>.
+EOF
+  if [ -n "$yes" ]; then
+    echo "BWAT_PUBLIC_URL is required with -y" >&2
+    exit 2
+  fi
+fi
+if [ -n "$url" ]; then
+  :
+elif [ -n "$yes" ]; then
+  url=$saved
+else
+  printf '%s' "bwat's address (https://...)${saved:+ [current: $saved]}: " >&2; read -r url
+  url=${url:-${saved:-$local_url}}
+fi
+url=${url%/} # a pasted address often ends in a slash
+if [ "$url" != "$local_url" ] && [[ ! $url =~ ^https://[a-z0-9.-]+$ ]]; then
+  echo "BWAT_PUBLIC_URL must be https:// and a lowercase host name, no port or path, or $local_url (got '$url')" >&2
+  exit 2
+fi
+e_BWAT_PUBLIC_URL=$url
+e_BWAT_PUBLIC_HOST=${url#*://}
+e_BWAT_PUBLIC_HOST=${e_BWAT_PUBLIC_HOST%:*}
+# caddy: this server gets its own certificate on 80/443. external: a load balancer or a
+# proxy gives the address HTTPS and forwards to the edge's port; the local address (a local install's)
+# needs no HTTPS.
+if [ "$url" = "$local_url" ]; then
+  e_BWAT_TLS=external
+else
+  if [ -z "$yes" ] && [ -z "$(given BWAT_TLS)" ]; then
+    current=n
+    [ "${e_BWAT_TLS:-}" = external ] && current=y
+    printf '%s' "Does a load balancer or proxy in front give this address its HTTPS? (y/n) [current: $current] " >&2; read -r answer
+    if [[ ${answer:-$current} =~ ^[yY] ]]; then e_BWAT_TLS=external; else e_BWAT_TLS=caddy; fi
+  fi
+  default BWAT_TLS caddy
+fi
+if [[ ! ${e_BWAT_TLS} =~ ^(caddy|external)$ ]]; then
+  echo "BWAT_TLS must be caddy or external" >&2
+  exit 2
+fi
+if [ "${e_BWAT_TLS}" = caddy ] && [[ $edge_port =~ ^(80|443)$ ]]; then
+  echo "BWAT_EDGE_PORT cannot be 80 or 443 with BWAT_TLS=caddy: the edge serves the address on them" >&2
+  exit 2
+fi
+
+# The sha256 of a sign-in code as the backend reads it (backend/src/code-signin.ts):
+# upper case, letters and digits only, as hex.
+code_digest() {
+  local plain
+  plain=$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | tr -cd 'A-Z0-9')
+  if command -v sha256sum > /dev/null; then
+    printf '%s' "$plain" | sha256sum | cut -d' ' -f1
+  else
+    printf '%s' "$plain" | shasum -a 256 | cut -d' ' -f1
+  fi
+}
+# A new code: 32 characters from the alphabet people type without mistakes (no 0, 1, I or
+# O; 5 bits each, 160 in all), shown in groups of four.
+new_code_plain() {
+  local alphabet=ABCDEFGHJKLMNPQRSTUVWXYZ23456789 plain= byte bytes
+  bytes=$(od -A n -t u1 -N 32 /dev/urandom)
+  for byte in $bytes; do plain+=${alphabet:$((byte & 31)):1}; done
+  printf '%s' "$plain" | sed 's/..../&-/g; s/-$//'
+}
+# The code, shown once and never logged: on the terminal (fd 4, kept from before the log took
+# stdout), or with no terminal in a file only this user reads, which the setup page shows once
+# and deletes.
+show_code() {
+  if [ -t 4 ]; then
+    {
+      echo "Your sign-in code, shown this once (it is not in the log; keep it somewhere safe):"
+      echo
+      echo "    $1"
+      echo
+      echo "Anyone with it can sign in to this bwat, as any email. Lost it? ./bwat setup --new-code makes a new one."
+    } >&4
+    echo "(the sign-in code was shown on the terminal, not logged)"
+  else
+    # Private from the start; the chmod covers a file an earlier run left.
+    (umask 077; printf '%s\n' "$1" > .bwat/signin-code)
+    chmod 600 .bwat/signin-code
+    echo "Your sign-in code is in $PWD/.bwat/signin-code, which only you can read. The setup page shows it once and deletes it; otherwise read it there, then delete the file."
+  fi
+}
+# Set only when this run makes a code: it is shown once, at the end, and never saved.
+shown_code=
+
+if [ "$tier" = local ]; then
+  step 2 "Sign-in"
+  # D202: a local install has no Google. People sign in with one code and any email; whoever holds the
+  # code is trusted with every account.
+  if [ -n "$(given BWAT_GOOGLE_CLIENT_ID)$(saved_value BWAT_GOOGLE_CLIENT_ID)$(given BWAT_ALLOWED_DOMAINS)$(saved_value BWAT_ALLOWED_DOMAINS)" ]; then
+    echo "This install has Google sign-in, which a local install does not use: run ./bwat setup --tier production, or start a local install in a new folder." >&2
+    exit 2
+  fi
+  if [ -z "$(given BWAT_FIRST_OWNER_EMAIL)" ] && { [ -z "$yes" ] || unset_yet BWAT_FIRST_OWNER_EMAIL; }; then
+    echo "The owner signs in with this email and can manage bwat; anyone else who signs in is a member."
+  fi
+  ask_checked BWAT_FIRST_OWNER_EMAIL "Your email, the owner's" "$email_form" 254 "an email address"
+  e_BWAT_FIRST_OWNER_EMAIL=$(printf '%s' "${e_BWAT_FIRST_OWNER_EMAIL}" | tr '[:upper:]' '[:lower:]')
+  if [ -n "$new_code" ] || unset_yet BWAT_SIGNIN_CODE_SHA256; then
+    shown_code=$(new_code_plain)
+    if [ "$(printf '%s' "$shown_code" | tr -cd 'A-Z0-9' | wc -c | tr -d ' ')" != 32 ]; then
+      echo "Could not make a sign-in code: this computer's random source (od, /dev/urandom) did not answer." >&2
+      exit 1
+    fi
+    e_BWAT_SIGNIN_CODE_SHA256=$(code_digest "$shown_code")
+    # An old code left for the setup page no longer signs anyone in.
+    rm -f .bwat/signin-code
+    if [ -n "$new_code" ] && [ -n "$(saved_value BWAT_SIGNIN_CODE_SHA256)" ]; then
+      echo "made a new sign-in code: every sign-in with the old one ends when bwat restarts below"
+    fi
+  fi
+  for key in BWAT_ALLOWED_DOMAINS BWAT_GOOGLE_CLIENT_ID BWAT_GOOGLE_CLIENT_SECRET BWAT_GOOGLE_DESKTOP_CLIENT_ID \
+    BWAT_GOOGLE_DESKTOP_CLIENT_SECRET BWAT_GOOGLE_CLIENT_IDS; do
+    store "$key" ""
+  done
+else
+step 2 "Google sign-in"
+if [ -n "$new_code" ]; then
+  echo "--new-code is for a local install; this one is $tier and signs in with Google." >&2
+  exit 2
+fi
+# Each note shows when its question is asked: every interactive run, or with -y
+# only while the setting is missing.
+if [ -z "$(given BWAT_ALLOWED_DOMAINS)" ] && { [ -z "$yes" ] || unset_yet BWAT_ALLOWED_DOMAINS; }; then
+  echo "bwat lets in only Google accounts from the domains you list here and refuses all others, including personal Gmail."
+fi
+ask BWAT_ALLOWED_DOMAINS "Your company's Google domains (e.g. yourcompany.com, comma-separated)"
+if [ -z "$(given BWAT_GOOGLE_CLIENT_ID)" ] && { [ -z "$yes" ] || unset_yet BWAT_GOOGLE_CLIENT_ID; }; then
+  cat <<EOF
+
+In Google Cloud (https://console.cloud.google.com/), in your company's project:
+  1. $(setup/paths google-overview).
+  2. $(setup/paths google-clients), then $(setup/paths google-web-type):
+       JavaScript origin: $url
+       redirect URI: $url/auth/callback
+     Leave "This client will be used by an AI-powered agent" unticked.
+  3. A second client, a Desktop app (asked for after the web one).
+EOF
+fi
+ask BWAT_GOOGLE_CLIENT_ID "Google web client id (the board's sign-in)"
+ask BWAT_GOOGLE_CLIENT_SECRET "Google web client secret" secret
+if [ -z "$(given BWAT_GOOGLE_DESKTOP_CLIENT_ID)" ] && { [ -z "$yes" ] || unset_yet BWAT_GOOGLE_DESKTOP_CLIENT_ID; }; then
+  cat <<EOF
+
+Now create a second client in the same project: $(setup/paths google-clients), then $(setup/paths google-desktop-type), name it
+'bwat desktop'. No URLs to enter; leave the AI-powered agent box unticked.
+The plugin signs in with it on each person's machine, which a Web client can't do.
+Paste its Client ID and Client secret: bwat hands both to the plugin, so nobody else
+types them (Google treats a Desktop client's secret as public).
+EOF
+fi
+ask BWAT_GOOGLE_DESKTOP_CLIENT_ID "Google Desktop client id (the plugin's sign-in)"
+ask BWAT_GOOGLE_DESKTOP_CLIENT_SECRET "Google Desktop client secret" secret
+# The backend accepts tokens from both clients, the web one first.
+e_BWAT_GOOGLE_CLIENT_IDS=${e_BWAT_GOOGLE_CLIENT_ID},${e_BWAT_GOOGLE_DESKTOP_CLIENT_ID}
+# Past the local tier the code signs nobody in (D202); the backend removes who joined by it once.
+e_BWAT_SIGNIN_CODE_SHA256=
+rm -f .bwat/signin-code
+# The owner a local install named must be one Google can sign in from these domains, or the backend
+# refuses to start (BWAT_FIRST_OWNER_EMAIL outside BWAT_ALLOWED_DOMAINS) and the owner is locked out.
+owner=$(saved_value BWAT_FIRST_OWNER_EMAIL)
+owner=${owner:-$(given BWAT_FIRST_OWNER_EMAIL)}
+if [ -n "$owner" ]; then
+  domains=,$(printf '%s' "${e_BWAT_ALLOWED_DOMAINS}" | tr '[:upper:]' '[:lower:]' | tr -d ' '),
+  until [[ $domains == *",${owner##*@},"* ]]; do
+    echo "The owner, $owner, is not in your Google domains (${e_BWAT_ALLOWED_DOMAINS}): they could never sign in with Google." >&2
+    if [ -n "$yes" ] || [ -n "$(given BWAT_FIRST_OWNER_EMAIL)" ]; then
+      echo "Set BWAT_FIRST_OWNER_EMAIL to the owner's company Google address, then run setup again." >&2
+      exit 2
+    fi
+    printf '%s' "The owner's company Google email: " >&2; read -r owner
+    owner=$(printf '%s' "$owner" | tr '[:upper:]' '[:lower:]')
+  done
+  e_BWAT_FIRST_OWNER_EMAIL=$owner
+fi
+fi
+
+step 3 "Your Zoom app"
+# The name people see in the Zoom participant list and chat; the bot's config file
+# holds it, so plain characters only.
+unset_yet BWAT_BOT_NAME && e_BWAT_BOT_NAME=bwat
+ask_checked BWAT_BOT_NAME "Name the bot shows in meetings" "$plain" 60 "$plain_rule"
+# Zoom requires these before the app can be shared in your account (Beta Test).
+ask_checked BWAT_ZOOM_COMPANY "Your company name, as Zoom shows it on the app" "$plain" 100 "$plain_rule"
+ask_checked BWAT_ZOOM_CONTACT_NAME "Contact name for the app" "$plain" 100 "$plain_rule"
+# Zoom's contact is usually whoever installs, the owner: their email is the default.
+unset_yet BWAT_ZOOM_CONTACT_EMAIL && [ -n "${e_BWAT_FIRST_OWNER_EMAIL:-}" ] && e_BWAT_ZOOM_CONTACT_EMAIL=$e_BWAT_FIRST_OWNER_EMAIL
+ask_checked BWAT_ZOOM_CONTACT_EMAIL "Contact email for the app" "$email_form" 254 "an email address"
+# The apps are named "bwat <name> bot" and "bwat <name> board": the contact's first name,
+# unless BWAT_ZOOM_OWNER_NAME says otherwise. Not asked: the contact is the installer.
+unset_yet BWAT_ZOOM_OWNER_NAME && e_BWAT_ZOOM_OWNER_NAME=${e_BWAT_ZOOM_CONTACT_NAME%% *}
+export BWAT_ZOOM_COMPANY=${e_BWAT_ZOOM_COMPANY} BWAT_ZOOM_CONTACT_NAME=${e_BWAT_ZOOM_CONTACT_NAME} \
+  BWAT_ZOOM_CONTACT_EMAIL=${e_BWAT_ZOOM_CONTACT_EMAIL} BWAT_ZOOM_OWNER_NAME=${e_BWAT_ZOOM_OWNER_NAME}
+# Next to ./bwat, not in .bwat: the person opens them, and file browsers hide dot-folders.
+BWAT_PUBLIC_URL=$url BWAT_MODE=${e_BWAT_MODE} setup/zoom-manifest > zoom-manifest.json
+files=("Zoom app manifest:zoom-manifest.json")
+# The board app runs inside Zoom, which installs it only at a public https address:
+# production's.
+if [ "$tier" = production ]; then
+  BWAT_PUBLIC_URL=$url BWAT_MODE=${e_BWAT_MODE} setup/zoom-manifest --board > zoom-board-manifest.json
+  files+=("board app manifest:zoom-board-manifest.json")
+else
+  # A board manifest from an earlier address would send Zoom to the wrong place.
+  rm -f zoom-board-manifest.json
+fi
+for file in "${files[@]}"; do
+  echo "${file%:*}: $PWD/${file##*:}"
+  if command -v cygpath > /dev/null; then
+    echo "  (in Windows: $(cygpath -w "$PWD/${file##*:}"))"
+  fi
+done
+cat <<EOF
+
+In the Zoom App Marketplace, create the app: $(setup/paths zoom-new-app),
+then upload the Zoom app manifest named above with $(setup/paths zoom-manifest-upload). Do not submit it
+for publication.
+Then, in that app, $(setup/paths zoom-sdk-download): download the Linux x86_64
+SDK (Zoom's latest is fine) into your Downloads folder (under WSL, the Windows one
+works too); the next step builds the meeting bot from it, and waits for the
+download if it is not there yet.
+EOF
+if [ "$tier" = local ]; then
+  cat <<EOF
+
+That is the only Zoom app on this tier: the board shows in a browser, not inside
+Zoom. The board inside Zoom comes with production: ./bwat setup --tier production.
+EOF
+else
+  cat <<EOF
+
+Then the board app, bwat's board inside a meeting. Zoom allows an in-meeting app
+only on a user-managed app, so it is a second app, made the same way from the board
+app manifest named above. It needs no values here.
+To give it to everyone and open it in every meeting:
+  1. In the board app: $(setup/paths zoom-beta-test). (Beta Test
+     needs the company name and contact from the manifest, already filled in.)
+  2. Still in the board app, open $(setup/paths zoom-preview),
+     then $(setup/paths zoom-add-for-others).
+  3. In the Zoom web portal, open $(setup/paths zoom-account-settings), then
+     $(setup/paths zoom-auto-open); the app is bwat ${e_BWAT_ZOOM_OWNER_NAME} board.
+Without step 3, it opens from $(setup/paths zoom-open-board); the app is bwat ${e_BWAT_ZOOM_OWNER_NAME} board.
+EOF
+  echo "If Add app now says Invalid redirect (4,700), type the redirect URL in again in $(setup/paths zoom-oauth-information) and save."
+fi
+if [ -z "$yes" ] && [ -z "$(given ZOOM_CLIENT_ID)" ]; then
+  printf '%s' "Press Enter once the apps are created and the SDK downloaded. " >&2; read -r _
+fi
+
+step 4 "The meeting bot"
+# The bot is built here from the Zoom Meeting SDK, which only the company can
+# download. setup/zoom-sdk exits 2 when it finds no archive to build from.
+# The image is labelled with the git tree of bot/ it was built from (setup/zoom-sdk), so
+# a pull that changes the bot or its SDK pin rebuilds it; an image without one too.
+built=$(docker image inspect -f '{{index .Config.Labels "bwat.bot-tree"}}' bwat-bot:zoom 2>/dev/null || true)
+rebuilt=
+if [ -z "$built" ] || [ "$built" != "$(git rev-parse HEAD:bot 2>/dev/null || true)" ]; then
+  # Rosetta was checked before the first question (setup/docker-rosetta).
+  sdk=0
+  setup/zoom-sdk ${BWAT_ZOOM_SDK_ARCHIVE:+"$BWAT_ZOOM_SDK_ARCHIVE"} || sdk=$?
+  [ "$sdk" -eq 0 ] || [ "$sdk" -eq 2 ] || exit "$sdk"
+  [ "$sdk" -ne 0 ] || rebuilt=1
+  # An image from before the label has none, and is kept all the same.
+  if [ "$sdk" -eq 2 ] && docker image inspect bwat-bot:zoom > /dev/null 2>&1; then
+    echo "keeping the meeting bot from an earlier bwat until the SDK is downloaded again"
+  fi
+fi
+if docker image inspect bwat-bot:zoom > /dev/null 2>&1; then
+  e_COMPOSE_PROFILES=zoom
+  echo "the meeting bot is built (bwat-bot:zoom)"
+else
+  e_COMPOSE_PROFILES=
+  echo "bwat runs without its meeting bot for now; see the end of setup."
+fi
+
+step 5 "Start bwat"
+default BWAT_SECRET_STORE local
+default COMPOSE_PROJECT_NAME bwat
+default COMPOSE_PATH_SEPARATOR :
+# The backend's loopback port (the edge is the way in): the first free one from
+# 3000 but never the edge's, chosen once and kept, since a developer machine often has 3000 taken.
+if [ -z "${BWAT_PORT:-${e_BWAT_PORT:-}}" ]; then
+  port=3000
+  while [ "$port" = "$edge_port" ] || (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; do port=$((port + 1)); done
+  e_BWAT_PORT=$port
+fi
+default BWAT_PORT 3000
+compose_file=docker-compose.yml:docker-compose.bot.yml:setup/compose.yml
+[ "${e_BWAT_TLS}" = caddy ] && compose_file+=:setup/compose.tls.yml
+# The installer's tests put their ACME test CA here.
+[ -f compose.local.yml ] && compose_file+=:compose.local.yml
+e_COMPOSE_FILE=$compose_file
+e_BWAT_DEV_PERSON_TOKEN=
+
+# Another stack already called bwat (an older checkout, say) would share this
+# install's containers and database volume. An install's own carries setup/compose.yml.
+other_stack() {
+  local found
+  found=$(docker compose ls -a --format json | grep -o "{\"Name\":\"$1\",[^}]*}" || true)
+  [ -n "$found" ] && [[ ! $found =~ setup[/\\]+compose\.yml ]] && echo "$found"
+}
+name=${e_COMPOSE_PROJECT_NAME}
+project=$(other_stack "$name" || true)
+# Only the default gives way; a name someone chose is theirs to change.
+if [ -n "$project" ] && [ "$name" = bwat ] && [ -z "${COMPOSE_PROJECT_NAME:-}" ] && [ ! -f .env ]; then
+  echo "Docker already runs another stack named bwat; this install is named bwat-local."
+  name=bwat-local
+  e_COMPOSE_PROJECT_NAME=$name
+  project=$(other_stack "$name" || true)
+fi
+if [ -n "$project" ]; then
+  echo "Docker already runs a compose project named $name that this installer did not start:" >&2
+  echo "  $project" >&2
+  echo "Stop it first (docker compose -p $name down, which keeps its volumes), then run setup again." >&2
+  exit 2
+fi
+for name in POSTGRES_PASSWORD BWAT_OWNER_PASSWORD BWAT_RUNTIME_PASSWORD BWAT_CARDS_PASSWORD; do
+  generate "$name" 24
+done
+for name in BWAT_ENC_KEY BWAT_FEED_KEY BWAT_CARDS_BACKEND_TOKEN; do
+  generate "$name" 32
+done
+# The web app's cookie key: 32 bytes, which it reads as base64.
+[ -n "${e_BWAT_SESSION_SECRET:-}" ] ||
+  e_BWAT_SESSION_SECRET=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
+# Jev (QOR-4769) tells the card writer when to write, so cards come within seconds; it
+# uses the model key of step 7. Asked before .env is written, so the backend starts with
+# it; on unless the person says no. The admin panel's Use Jev switch overrides it.
+if [ -z "$yes" ] && [ -z "$(given BWAT_JEV)" ]; then
+  current=on
+  [ "$(saved_value BWAT_JEV)" = off ] && current=off
+  choice='[Y/n]'
+  [ "$current" = off ] && choice='[y/N]'
+  printf '%s' "Use Jev (TypeSafe, via OpenRouter) for faster cards? Recommended. $choice " >&2; read -r answer
+  case $answer in
+    [nN]*) e_BWAT_JEV=off ;;
+    [yY]*) e_BWAT_JEV=on ;;
+    *) e_BWAT_JEV=$current ;;
+  esac
+fi
+default BWAT_JEV on
+if [[ ! ${e_BWAT_JEV} =~ ^(on|off)$ ]]; then
+  echo "BWAT_JEV must be on or off" >&2
+  exit 2
+fi
+write_env
+# The code's digest is saved now and the code shown at the end. A run that stops on the way
+# shows it as it stops, so no install keeps a code nobody saw; showing it clears shown_code.
+[ -z "$shown_code" ] || trap '[ -z "$shown_code" ] || { echo; show_code "$shown_code"; }' EXIT
+if [ -n "$no_start" ]; then
+  echo "saved .env without starting bwat; run ./bwat setup to start it"
+  # A code made by this run is shown now: the run ends here.
+  [ -z "$shown_code" ] || { show_code "$shown_code"; shown_code=; }
+  exit 0
+fi
+
+# A second run leaves a converged stack alone: `up` would start the one-off
+# bootstrap and migrate containers again. The hashes cover every service's
+# settings, .env's values included, but not an image rebuilt under the same tag: a new
+# bot image is started even when nothing else changed.
+if [ -z "$rebuilt" ] && [ "$(docker compose config --hash '*')" = "$(cat .bwat/compose.hash 2>/dev/null)" ] &&
+  [ "$(docker compose ps -q --status running backend cards web edge | wc -l | tr -d ' ')" = 4 ]; then
+  echo "the stack is up and unchanged"
+  converged=1
+else
+  # The backend first: the card service needs the credential minted through it.
+  docker compose up -d --build --wait backend
+  converged=
+fi
+
+if [ -z "${e_BWAT_FLEET_CREDENTIAL:-}" ]; then
+  # Shown once and kept only in .env; captured, so it never reaches the log.
+  token=$(docker compose exec -T backend node dist/scripts/fleet-credential.js --label "host-$(hostname)" < /dev/null | tail -n 1)
+  if [[ ! $token =~ ^bwf_ ]]; then
+    echo "fleet-credential did not print a credential" >&2
+    exit 1
+  fi
+  e_BWAT_FLEET_CREDENTIAL=$token
+  write_env
+  echo "minted the bots' fleet credential into .env"
+fi
+
+if [ -z "${e_BWAT_CARDS_CREDENTIAL:-}" ]; then
+  token=$(docker compose exec -T backend node dist/scripts/cards-credential.js --label cards < /dev/null | tail -n 1)
+  if [[ ! $token =~ ^bwc_ ]]; then
+    echo "cards-credential did not print a credential" >&2
+    exit 1
+  fi
+  e_BWAT_CARDS_CREDENTIAL=$token
+  write_env
+  echo "minted the card service's credential into .env"
+fi
+
+if [ -z "$converged" ]; then
+  docker compose up -d --build --wait
+  # With caddy, the edge has the certificate once it answers HTTPS for the address.
+  # Asked from inside the edge, so its own port 8080 whatever BWAT_EDGE_PORT is.
+  probe=http://localhost:8080/health
+  [ "${e_BWAT_TLS}" = caddy ] && probe=https://${e_BWAT_PUBLIC_HOST}/health
+  echo "waiting for the edge to answer $probe"
+  for try in $(seq 60); do
+    if docker compose exec -T edge wget -q -O /dev/null --no-check-certificate "$probe" < /dev/null 2>/dev/null; then
+      break
+    fi
+    if [ "$try" = 60 ]; then
+      echo "the edge did not answer in 2 minutes; see: docker compose logs edge" >&2
+      exit 1
+    fi
+    sleep 2
+  done
+fi
+docker compose config --hash '*' > .bwat/compose.hash
+echo "bwat is running at $url"
+
+# Tier-2 secrets go into the backend's secret store, never .env; JSON on stdin. Without
+# --force a value already stored is kept, so a re-run leaves admin-panel changes alone;
+# --force only for values the person has just typed.
+seed() {
+  docker compose exec -T backend node dist/scripts/seed-secrets.js - "$@"
+}
+
+# JSON of <secret name> <answers key> pairs from bwat.answers (checked when the file was
+# read); a blank answer is left out, for the admin panel, as the store takes no blanks.
+answers_json() {
+  local json='' value
+  while [ $# -gt 0 ]; do
+    value=$(answer "$2")
+    if [ -n "$value" ]; then
+      json+="${json:+,}\"$1\":\"$value\""
+    else
+      echo "$2 is blank in bwat.answers: enter it in the admin panel" >&2
+    fi
+    shift 2
+  done
+  printf '{%s}' "$json"
+}
+
+# What this run left for later, and what each stops working: the box at the end.
+missing=()
+[ -n "${e_COMPOSE_PROFILES}" ] ||
+  missing+=("The Zoom Meeting SDK: no meeting bot until it is downloaded and setup runs again (the \"Download the Meeting SDK\" step of docs/onboarding.md).")
+
+step 6 "Zoom credentials"
+if [ -n "${a_ZOOM_CLIENT_ID:-}" ]; then
+  pairs=(zoom.client_id ZOOM_CLIENT_ID zoom.client_secret ZOOM_CLIENT_SECRET)
+  # The board app and meeting events only in production, the one install Zoom can reach.
+  [ "$tier" != production ] || pairs+=(zoom.board_client_secret ZOOM_BOARD_CLIENT_SECRET zoom.webhook_secret ZOOM_WEBHOOK_SECRET)
+  # The Server-to-Server app is optional in every mode: its three only when the account id is there.
+  if [ -n "${a_ZOOM_S2S_ACCOUNT_ID:-}" ]; then
+    pairs+=(zoom.s2s_account_id ZOOM_S2S_ACCOUNT_ID zoom.s2s_client_id ZOOM_S2S_CLIENT_ID
+      zoom.s2s_client_secret ZOOM_S2S_CLIENT_SECRET)
+  fi
+  answers_json "${pairs[@]}" | seed
+elif [ -n "$yes" ]; then
+  echo "skipped with -y: enter them in the admin panel, or run ./bwat setup again."
+  missing+=("The Zoom credentials: bwat cannot join a meeting until they are in the admin panel (Settings, Zoom) or setup runs again.")
+else
+  printf '%s' "Paste the Zoom credentials now? [y/N] " >&2; read -r answer
+  if [[ $answer =~ ^[yY] ]]; then
+    BWAT_MODE=${e_BWAT_MODE} BWAT_BOARD_APP=$([ "$tier" != production ] || echo 1) setup/zoom-secrets .bwat/zoom-seed.json
+    json=$(cat .bwat/zoom-seed.json)
+    rm -f .bwat/zoom-seed.json
+    printf '%s' "$json" | seed --force
+  else
+    missing+=("The Zoom credentials: bwat cannot join a meeting until they are in the admin panel (Settings, Zoom) or setup runs again.")
+  fi
+fi
+
+step 7 "The model key"
+if [ -n "${a_OPENROUTER_API_KEY:-}" ]; then
+  answers_json provider.openrouter OPENROUTER_API_KEY | seed
+elif [ -n "$yes" ]; then
+  echo "skipped with -y: enter it in the admin panel, or run ./bwat setup again."
+  missing+=("The OpenRouter key: bwat joins and records, but writes no transcript and no cards until it is in the admin panel (Settings, Model keys).")
+else
+  printf '%s' "OpenRouter API key, for transcription and the card writer (blank: set it later in the admin panel): " >&2; read -rs key
+  echo
+  [ -n "$key" ] ||
+    missing+=("The OpenRouter key: bwat joins and records, but writes no transcript and no cards until it is in the admin panel (Settings, Model keys).")
+  if [ -n "$key" ]; then
+    if [[ ! $key =~ ^[A-Za-z0-9._~-]+$ ]]; then
+      echo "that does not look like an API key; set it in the admin panel" >&2
+      exit 2
+    fi
+    printf '{"provider.openrouter":"%s"}' "$key" | seed --force
+  fi
+fi
+
+echo
+echo "bwat is installed and running."
+echo "Next:"
+n=0
+next() {
+  n=$((n + 1))
+  echo "  $n. $1"
+}
+if [ "$tier" = local ]; then
+  next "Open $url and sign in with the code below and your email, ${e_BWAT_FIRST_OWNER_EMAIL}: that makes you the owner. Anyone with the code can sign in, as any email."
+else
+  next "Open $url and sign in first: the first person to sign in becomes the owner."
+fi
+plugin_url=$url/v1
+local_note=
+if [ "$url" = "$local_url" ]; then
+  plugin_url=http://127.0.0.1:$edge_port/v1
+  local_note=" The address is 127.0.0.1, not localhost: the plugin accepts plain http only for 127.0.0.1, not the name localhost."
+fi
+# The plugin's commands come from setup/plugin, which holds the marketplace's name.
+if [ "$tier" = local ]; then
+  next "Connect Claude Code: run ./bwat plugin, then restart Claude Code and type /bwat:login. By hand, in a terminal:"
+else
+  next "Connect Claude Code: run ./bwat plugin here; each teammate runs these in a terminal, then restarts Claude Code and types /bwat:login:"
+fi
+setup/plugin --print "$plugin_url" | sed 's/^/       /'
+echo "     The admin panel's Members page shows them too.$local_note"
+if [ "$tier" = production ]; then
+  next "In Zoom, on your main bwat app: Validate the event URL ($(setup/paths zoom-event-validate)), then $(setup/paths zoom-beta-test), which installs it on your account so Zoom sends it meeting events."
+  next "Teammates add nothing in Zoom: the board app was added for everyone. In a meeting, bwat opens from $(setup/paths zoom-open-board); the app is bwat ${e_BWAT_ZOOM_OWNER_NAME} board."
+else
+  next "In Zoom, on your main bwat app: $(setup/paths zoom-beta-test), which installs it on your account."
+fi
+if [ -z "${e_COMPOSE_PROFILES}" ]; then
+  next "Download the Zoom Meeting SDK (the \"Download the Meeting SDK\" step of docs/onboarding.md) and run ./bwat setup again: it builds the meeting bot."
+fi
+if [ "$tier" = production ]; then
+  next "Check Joining in the admin panel, $url/admin: automatic joining defaults on for every meeting in your Zoom account, but waits until the required Zoom setup and a ready bot are verified. An explicit off choice is kept."
+  next "Start a recorded meeting, or on the board, open Settings (the gear, top right) and paste a meeting link under Send bwat to a meeting."
+else
+  next "Open $url: on the board, open Settings (the gear, top right) and paste a meeting link under Send bwat to a meeting; bwat joins it and transcribes. The board shows in this browser, not inside Zoom."
+fi
+
+# The code, shown once and never logged (fd 4 is the terminal, before the log). A run
+# without a terminal (the setup page) leaves it in a file only this user can read, which
+# the page shows once and deletes.
+if [ "$tier" = local ]; then
+  echo
+  if [ -n "$shown_code" ]; then
+    show_code "$shown_code"
+    shown_code=
+  else
+    echo "Sign in with the code setup showed when it made this install. Lost it? ./bwat setup --new-code makes a new one."
+  fi
+fi
+
+# What is still missing, and what each stops working (QOR-5009): a warning, not a failure.
+if [ "${#missing[@]}" -gt 0 ]; then
+  echo
+  echo "+-- Still missing ------------------------------------------------------"
+  for item in "${missing[@]}"; do echo "| - $item"; done
+  echo "+-----------------------------------------------------------------------"
+fi
+
+echo
+case $tier in
+  local) echo "This install is local (this computer only). For a cloud server that joins meetings on its own: ./bwat setup --tier production." ;;
+  production) echo "This install is production, the last tier." ;;
+esac
+echo "This run's log: $PWD/$log"

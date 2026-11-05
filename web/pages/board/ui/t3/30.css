@@ -1,0 +1,5 @@
+/* Less noise on the card. A card head holds only a state badge; with none it takes no room. */
+.card-head:empty{display:none}
+/* The card ID trails the meta line, quiet (size: t3/33's 12px floor). */
+.card-source .card-code{letter-spacing:.3px;opacity:.8}
+/* Web column toggles read as checkboxes, not tabs: a box that ticks. */

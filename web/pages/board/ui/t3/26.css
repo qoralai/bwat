@@ -1,0 +1,7 @@
+/* The Zoom surface's column tabs. */
+.zoom-tabs{display:flex;gap:4px;margin:0 0 12px;border-bottom:1px solid var(--line)}
+.zoom-tabs button{flex:1;min-width:0;padding:6px 4px;font-size:13px;border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:var(--muted)}
+.zoom-tabs button span{font-size:11px;margin-left:2px}
+.zoom-tabs button[aria-selected=true]{color:var(--ink);font-weight:650;border-bottom-color:var(--orange)}
+/* The tabs already say which column is showing. */
+body.surface-zoom #result-count{display:none}

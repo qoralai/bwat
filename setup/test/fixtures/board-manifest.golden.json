@@ -1,0 +1,68 @@
+{
+  "display_information": {
+    "display_name": "bwat Ada board",
+    "description": "bwat's board inside your Zoom meetings.",
+    "company_name": "Example",
+    "discover_type": "LISTED",
+    "install_type": "APP_DIRECTORY"
+  },
+  "developer_information": {
+    "contact_details": [
+      {
+        "contact_name": "Ada",
+        "contact_email": "ada@example.com",
+        "role": "Owner"
+      }
+    ]
+  },
+  "oauth_information": {
+    "usage": "USER_OPERATION",
+    "development_redirect_uri": "https://bwat.test/",
+    "production_redirect_uri": "https://bwat.test/",
+    "oauth_allow_list": [
+      "https://bwat.test/"
+    ],
+    "strict_mode": true,
+    "subdomain_strict_mode": true,
+    "scopes": [
+      {
+        "scope": "zoomapp:inmeeting",
+        "optional": false
+      },
+      {
+        "scope": "user:read:user",
+        "optional": false
+      }
+    ],
+    "scope_description": "Open bwat's board inside a meeting and know which meeting it is."
+  },
+  "features": {
+    "products": [
+      "ZOOM_MEETING"
+    ],
+    "development_home_uri": "https://bwat.test/board.html",
+    "production_home_uri": "https://bwat.test/board.html",
+    "domain_allow_list": [
+      {
+        "domain": "bwat.test",
+        "explanation": "This install's board."
+      },
+      {
+        "domain": "appssdk.zoom.us",
+        "explanation": "Zoom Apps SDK loaded by the board."
+      }
+    ],
+    "in_client_feature": {
+      "zoom_app_api": {
+        "enable": true,
+        "zoom_app_apis": [
+          "appPopout",
+          "getAppContext",
+          "getMeetingUUID",
+          "getUserContext",
+          "openUrl"
+        ]
+      }
+    }
+  }
+}

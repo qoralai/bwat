@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.egg-info/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# environment and secrets — never commit these
+.env
+.env.*
+!.env.example
+!.env.docker.example
+*.pem
+*.key
+
+# test and coverage
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
+.vitest/
+
+# editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# the installer's state and logs, the Zoom manifests and bwat.answers (it holds secrets); the test harness's local overlay
+.bwat/
+zoom-manifest.json
+zoom-board-manifest.json
+bwat.answers
+compose.local.yml

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Print the installer test files of one CI shard (ci.yml, job installer), one per line.
+#
+#   setup/test/shard N      N from 1 to 3
+#
+# The shards are balanced by each file's run time in CI. The last shard is every file
+# the others do not name, so a new test file always runs somewhere.
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+named=(
+  "setup/test/e2e/port.bats setup/test/e2e/answers.bats"
+  "setup/test/e2e/tunnel.bats setup/test/e2e/collide.bats setup/test/e2e/slice.bats setup/test/e2e/bot.bats"
+)
+last=$((${#named[@]} + 1))
+n=${1:-}
+if [[ ! $n =~ ^[1-9][0-9]*$ ]] || [ "$n" -gt "$last" ]; then
+  echo "usage: setup/test/shard N (N from 1 to $last)" >&2
+  exit 2
+fi
+if [ "$n" -lt "$last" ]; then
+  # shellcheck disable=SC2086 # a shard is a space-separated list of paths
+  printf '%s\n' ${named[$((n - 1))]}
+  exit 0
+fi
+for file in setup/test/e2e/*.bats; do
+  [[ " ${named[*]} " == *" $file "* ]] || echo "$file"
+done

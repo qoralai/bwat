@@ -1,0 +1,42 @@
+{
+  "name": "bwat-backend",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Elastic-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "migrate": "node --experimental-strip-types scripts/migrate.ts",
+    "db-bootstrap": "node --experimental-strip-types scripts/db-bootstrap.ts",
+    "fleet-credential": "node --experimental-strip-types scripts/fleet-credential.ts",
+    "cards-credential": "node --experimental-strip-types scripts/cards-credential.ts",
+    "install-credential": "node --experimental-strip-types scripts/install-credential.ts",
+    "retention": "node --experimental-strip-types scripts/retention.ts",
+    "delete-meeting": "node --experimental-strip-types scripts/delete-meeting.ts",
+    "seed-secrets": "node --experimental-strip-types scripts/seed-secrets.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ecs": "^3.1145.0",
+    "@aws-sdk/client-secrets-manager": "^3.1145.0",
+    "fastify": "^5.12.7",
+    "pg": "^8.13.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.0",
+    "eslint": "^9.17.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^2.1.0"
+  }
+}

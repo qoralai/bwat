@@ -1,0 +1,6 @@
+{
+  "//": "No dependencies: this file only marks the onboarding server as ES modules.",
+  "private": true,
+  "license": "Elastic-2.0",
+  "type": "module"
+}

@@ -1,0 +1,17 @@
+/* What the board's feature plugins add (ui/plugins.js): drawn apart from core's own marks, in
+   the soft look's tokens (soft.css). A plugin styles its own insides (its page, row and section). */
+.plugin-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.plugin-tag{display:inline-flex;align-items:center;gap:5px;max-width:100%;font-size:11px;font-weight:600;line-height:1.5;padding:1px 7px;border-radius:5px;border:1px dashed var(--sf-border);color:var(--sf-ink-3);background:var(--sf-fill);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plugin-tag::before{content:"";flex:none;width:7px;height:7px;border-radius:2px;background:currentColor}
+.plugin-row{display:grid;grid-template-columns:76px minmax(0,1fr);gap:8px;align-items:center;font-size:13px;margin:12px 0}
+.plugin-row>:first-child{color:var(--sf-muted);font-size:12px}
+.plugin-pages{display:grid;gap:2px;margin:0 -4px 10px}
+.plugin-pages a{padding:8px 10px;border-radius:8px;color:var(--sf-title);font-size:13px;text-decoration:none}
+.plugin-pages a:hover{background:var(--sf-row-hover)}
+.plugin-pages a[aria-current=page]{background:var(--sf-tint);color:var(--sf-accent-ink);font-weight:600}
+.plugin-page{display:grid;gap:16px;align-content:start;min-width:0}
+.plugin-narrow{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:0 0 12px}
+.plugin-narrow-label{padding:2px 4px 2px 10px;border-radius:12px 0 0 12px;background:var(--sf-tint);color:var(--sf-accent-ink);font-size:12.5px;font-weight:600}
+.plugin-narrow .text-button{min-width:28px;min-height:24px;padding:2px 10px 2px 4px;border-radius:0 12px 12px 0;background:var(--sf-tint);color:var(--sf-accent-ink)}
+.plugin-sections{display:grid;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--sf-line)}
+.plugin-row select,.plugin-section select,.plugin-page select,.plugin-page textarea,.plugin-page input,.plugin-row input,.plugin-section input{font:inherit;font-size:13px;min-height:34px;padding:6px 10px;border-radius:9px;border:1px solid var(--sf-line);background:var(--sf-card);color:var(--sf-ink);box-shadow:var(--sf-shadow-field);max-width:100%}

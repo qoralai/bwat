@@ -1,0 +1,606 @@
+/* The "soft" look (10/6): the board restyled after the round-4 H1 mockups, which
+   take Things 3 as the reference. Loaded last. One set of rules for both themes, drawn
+   from the --sf-* palette below, so dark is the same design as light, not a recolour:
+   - a pale page (a deep one in dark) with cards lifted on a soft shadow, no borders;
+   - one blue accent; regular-weight titles with tiny grey meta under them;
+   - each control in the form people already read: pick-one choices (the owner filter,
+     the time scope, every Settings choice) as a segmented control with a raised thumb;
+     the column filters as show/hide chips, a check when on and a + when off; actions as
+     small buttons with 8px corners in Zoom's style, Send to Claude the one solid blue. */
+:root[data-theme="light"]{
+  --sf-page:#f1f4f6;--sf-rail:#fafbfc;--sf-card:#fff;--sf-raise:#fff;--sf-track:#e4e8ed;
+  --sf-fill:#eceff3;--sf-fill-hover:#e3e7ec;--sf-row-hover:#eef1f5;
+  --sf-chip-ink:var(--sf-ink);--sf-ink:#2a2b2d;--sf-title:#2a2b2d;--sf-ink-3:#686f79;--sf-muted:#8a909c;--sf-meta:#8e9194;--sf-faint:#a0a6b1;
+  --sf-line:#dfe3e8;--sf-rail-line:#e3e7ec;--sf-border:#d3d9e0;--sf-border-hover:#b9c1cc;
+  --sf-btn-border:#939ba4;--sf-btn-border-hover:#686f79;--sf-btn-hover:#f7f9fa;
+  --sf-accent:#0d6bde;--sf-accent-ink:#2057b1;--sf-accent-soft:#6f8fd6;--sf-solid:#0d6bde;--sf-solid-hover:#0c60c8;
+  --sf-tint:#e6f0fc;--sf-tint-hover:#dae9fb;--sf-tint-line:#a8ccf8;--sf-tint-line-hover:#4b96f1;
+  --sf-live:#da1639;--sf-live-tint:#fff2f5;--sf-live-ink:#af1e30;--sf-knob:#fff;
+  --sf-scroll:#c6ccd4;--sf-scroll-hover:#a7afba;--sf-backdrop:#1d212959;
+  --sf-type-do:#0d6bde;--sf-type-do-bg:#e6f0fc;--sf-type-ask:#6a48e0;--sf-type-ask-bg:#eee9fd;
+  --sf-type-risk:#c4500c;--sf-type-risk-bg:#fdebe1;--sf-type-decided:#17794b;--sf-type-decided-bg:#e2f3ea;
+  --sf-ok:#247f40;--sf-warn:#b36200;--sf-warn-tint:#fdf1e3;--sf-warn-ink:#a05800;
+  --sf-shadow-card:0 1px 1px #1d21290a,0 2px 10px #1d21290d;
+  --sf-shadow-card-hover:0 1px 2px #1d212914,0 8px 22px #1d212914;
+  --sf-shadow-thumb:0 1px 2px #1d21291f,0 1px 4px #1d212912;
+  --sf-shadow-field:0 1px 2px #1d21290d;
+  --sf-shadow-dialog:0 24px 70px #1d212930;
+  --sf-shadow-panel:0 1px 3px #1d212912,0 14px 44px #1d212924;
+  --paper:#f1f4f6;--surface:#fff;--ink:#2a2b2d;--muted:#8a909c;--line:#e6e9ee;--accent:#0d6bde;--pale:#eef1f5;
+  --sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif}
+/* Dark: the same layers, deep blue-grey instead of warm black. Shadows barely read on a
+   dark page, so a card also carries a faint light ring to lift it; the accent and the
+   live red are brighter so they keep their contrast. A solid button keeps the deeper blue,
+   since white text on the brighter accent is too faint. */
+:root[data-theme="dark"]{
+  --sf-page:#14161b;--sf-rail:#181b21;--sf-card:#1f232a;--sf-raise:#30353f;--sf-track:#262a31;
+  --sf-fill:#2a2e36;--sf-fill-hover:#333842;--sf-row-hover:#22262d;
+  --sf-chip-ink:#d2d6dc;--sf-ink:#dfe3e8;--sf-title:#dfe3e8;--sf-ink-3:#939ba4;--sf-muted:#8a919c;--sf-meta:#737a86;--sf-faint:#6b727d;
+  --sf-line:#2a2f37;--sf-rail-line:#252931;--sf-border:#363c46;--sf-border-hover:#4a515d;
+  --sf-btn-border:#555b62;--sf-btn-border-hover:#939ba4;--sf-btn-hover:#262a31;
+  --sf-accent:#4b96f1;--sf-accent-ink:#a8ccf8;--sf-accent-soft:#7f9fe0;--sf-solid:#0d6bde;--sf-solid-hover:#0c60c8;
+  --sf-tint:#1a2a52;--sf-tint-hover:#213563;--sf-tint-line:#2057b1;--sf-tint-line-hover:#4b96f1;
+  --sf-live:#ff6682;--sf-live-tint:#54171a;--sf-live-ink:#ff9d97;--sf-knob:#fff;
+  --sf-scroll:#3a404b;--sf-scroll-hover:#525a67;--sf-backdrop:#000000a6;
+  --sf-type-do:#84a1e2;--sf-type-do-bg:#232b3d;--sf-type-ask:#a493e6;--sf-type-ask-bg:#2c2740;
+  --sf-type-risk:#de9973;--sf-type-risk-bg:#34261f;--sf-type-decided:#6db590;--sf-type-decided-bg:#1d2e26;
+  --sf-ok:#48ad67;--sf-warn:#e3b341;--sf-warn-tint:#3a2e14;--sf-warn-ink:var(--sf-warn);
+  --sf-shadow-card:0 0 0 1px #ffffff0a,0 2px 12px #00000059;
+  --sf-shadow-card-hover:0 0 0 1px #ffffff14,0 8px 24px #0000008c;
+  --sf-shadow-thumb:0 1px 2px #00000080,inset 0 0 0 1px #ffffff0f;
+  --sf-shadow-field:0 0 0 1px #ffffff0a;
+  --sf-shadow-dialog:0 24px 70px #000000a6;
+  --sf-shadow-panel:0 0 0 1px #ffffff0d,0 16px 48px #0000008c;
+  --paper:#14161b;--surface:#1f232a;--ink:#dfe3e8;--muted:#8a919c;--line:#2a2f37;--accent:#4b96f1;--pale:#22262d;
+  --sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif}
+:root[data-theme] body,:root[data-theme] main#main{background:var(--sf-page);color:var(--sf-ink)}
+
+/* header */
+:root[data-theme] .app-header{background:var(--sf-page);border-bottom:0}
+:root[data-theme] .brand span{font-size:22px;letter-spacing:-.6px;font-weight:700}
+:root[data-theme] .open-full{border:0;background:transparent;color:var(--sf-ink-3);font-weight:600;padding:6px 4px}
+:root[data-theme] .open-full:hover{color:var(--sf-accent);background:transparent}
+:root[data-theme] .settings-open{border:0;background:transparent;color:var(--sf-ink-3)}
+:root[data-theme] .nav-toggle{border:0;background:transparent;color:var(--sf-ink-3)}
+:root[data-theme] #page-title{letter-spacing:-.8px;color:var(--sf-ink)}
+
+/* pick one: a segmented control, one grey track with a raised thumb */
+:root[data-theme] .segmented,:root[data-theme] .settings-seg{display:inline-flex;gap:0;padding:2px;border:0;border-radius:9px;background:var(--sf-track);box-shadow:none}
+:root[data-theme] .segmented button,:root[data-theme] .settings-btn{flex:1 1 auto;min-height:28px;padding:3px 14px;border:0;border-radius:7px;background:transparent;color:var(--sf-ink-3);font-size:13px;font-weight:600;box-shadow:none}
+:root[data-theme] .segmented button:hover:not(:disabled):not([aria-pressed=true]){background:transparent;color:var(--sf-ink)}
+:root[data-theme] .segmented button[aria-pressed=true],:root[data-theme] .settings-opt input:checked+.settings-btn{background:var(--sf-raise);border-color:transparent;color:var(--sf-ink);box-shadow:var(--sf-shadow-thumb)}
+
+/* show/hide: the column filters as chips after a "Show" label; the + and the check are
+   masks, so they take each theme's colour */
+
+/* search */
+:root[data-theme] .search input{border:0;border-radius:10px;background:var(--sf-card);color:var(--sf-ink);box-shadow:var(--sf-shadow-field)}
+:root[data-theme] .search svg{color:var(--sf-muted)}
+
+/* Zoom's To-dos / Questions tabs: an underline in the accent */
+:root[data-theme] .zoom-tabs{border-bottom:1px solid var(--sf-line)}
+:root[data-theme] .zoom-tabs button{color:var(--sf-muted);font-size:14px;font-weight:600;background:transparent}
+:root[data-theme] .zoom-tabs button:hover:not(:disabled){background:transparent;color:var(--sf-ink)}
+:root[data-theme] .zoom-tabs button[aria-selected=true]{color:var(--sf-accent);border-bottom-color:var(--sf-accent)}
+
+/* columns: no box; the title a blue section header over a hairline */
+:root[data-theme] .desk-column{background:transparent;border:0;padding:0;border-radius:0}
+:root[data-theme] .desk-column>header{border-bottom:1px solid var(--sf-line);padding-bottom:8px;margin-bottom:12px}
+:root[data-theme] .desk-column h2{font-size:15px;font-weight:700;color:var(--sf-accent);letter-spacing:0}
+:root[data-theme] .column-empty{border:0;background:transparent;color:var(--sf-faint);padding:14px 4px}
+
+/* cards: borderless, lifted */
+:root[data-theme] .card{background:var(--sf-card);border:0;border-radius:12px;box-shadow:var(--sf-shadow-card);margin-bottom:10px}
+:root[data-theme] .card:hover,:root[data-theme] .card:has(.card-open:hover){border-color:transparent;box-shadow:var(--sf-shadow-card-hover)}
+:root[data-theme] .card-open,:root[data-theme] .card-open:hover:not(:disabled){background:transparent}
+:root[data-theme] .card .card-open{padding:16px 18px 6px}
+:root[data-theme] .card:has(>.more-button) .card-open{padding-right:46px}
+:root[data-theme] .card>.more-button{top:10px;right:8px;min-height:30px;min-width:30px;border-radius:8px;border-color:transparent;background:transparent;color:var(--sf-accent);opacity:.75}
+:root[data-theme] .card>.more-button:hover,:root[data-theme] .card>.more-button[aria-expanded=true]{opacity:1;border-color:transparent;background:var(--sf-tint);color:var(--sf-accent)}
+:root[data-theme] .card-head:empty{display:none}
+:root[data-theme] .card h3{font-size:15px;font-weight:500;line-height:1.4;color:var(--sf-title)}
+:root[data-theme] .card-source{display:flex;align-items:center;gap:6px;margin-top:3px;color:var(--sf-meta)}
+:root[data-theme] .card-code{font-size:11.5px;color:var(--sf-meta)}
+:root[data-theme] .card-foot{background:transparent;border-top:0;padding:4px 14px 14px 18px}
+:root[data-theme] .owner{font-size:13px;color:var(--sf-ink-3)}
+:root[data-theme] .card .avatar{width:22px;height:22px;font-size:10px}
+:root[data-theme] .card-foot button{min-height:28px;padding:3px 12px;border:1px solid var(--sf-btn-border);border-radius:8px;background:var(--sf-card);color:var(--sf-ink);font-size:12.5px;font-weight:500;box-shadow:none}
+:root[data-theme] .card-foot button:hover:not(:disabled):not([aria-disabled=true]){border-color:var(--sf-btn-border-hover);background:var(--sf-btn-hover)}
+:root[data-theme] .card-foot button[data-send]:not([aria-disabled=true]){border-color:var(--sf-solid);background:var(--sf-solid);color:#fff}
+:root[data-theme] .card-foot button[data-send]:not([aria-disabled=true]):hover{border-color:var(--sf-solid-hover);background:var(--sf-solid-hover)}
+:root[data-theme] .card-foot button[aria-disabled=true]{opacity:.45}
+
+/* Settings (redesign A1): one sheet, three eyebrowed groups of rows split by a hairline */
+:root[data-theme] .settings-dialog{border:0;border-left:1px solid var(--sf-line);border-radius:0;background:var(--sf-card);color:var(--sf-ink);box-shadow:var(--sf-shadow-dialog)}
+:root[data-theme] .settings-dialog::backdrop{background:transparent}
+:root[data-theme] .settings-meeting .live-pill-dot{background:var(--sf-live)}
+:root[data-theme] .settings-leave{border:1px solid var(--sf-border);background:var(--sf-card);color:var(--sf-live-ink)}
+:root[data-theme] .settings-leave:hover{background:var(--sf-fill)}
+:root[data-theme] .settings-cancel{border:1px solid transparent;background:none;color:var(--sf-accent-ink)}
+:root[data-theme] .settings-head{border-bottom:1px solid var(--sf-line)}
+:root[data-theme] .settings-head h2{font-size:16px;font-weight:700}
+:root[data-theme] .settings-group{color:var(--sf-muted)}
+:root[data-theme] .settings-row{border-bottom:1px solid var(--sf-line)}
+:root[data-theme] .settings-row:has(+ .settings-group){border-bottom:0}
+:root[data-theme] .settings-label{color:var(--sf-ink)}
+:root[data-theme] .settings-help{color:var(--sf-muted)}
+:root[data-theme] .settings-switch i{background:var(--sf-fill-hover)}
+:root[data-theme] .settings-switch i::after{background:var(--sf-knob)}
+:root[data-theme] .settings-switch input:checked+i{background:var(--sf-accent)}
+:root[data-theme] .settings-switch input:focus-visible+i{outline-color:var(--sf-accent)}
+:root[data-theme] .settings-company{border-color:var(--sf-line);color:var(--sf-ink)}
+:root[data-theme] .settings-company:hover{background:var(--sf-fill)}
+/* its scrollbar: a thin rounded thumb on no track and no arrows, held 18px clear of the
+   top and bottom so it never runs into the sheet's rounded corners (Firefox has no
+   scrollbar pseudo-elements, so it gets the thin standard one) */
+:root[data-theme] .settings-dialog::-webkit-scrollbar{width:12px}
+:root[data-theme] .settings-dialog::-webkit-scrollbar-track{background:transparent;margin:18px 0}
+:root[data-theme] .settings-dialog::-webkit-scrollbar-thumb{border:4px solid transparent;border-radius:999px;background:var(--sf-scroll) padding-box}
+:root[data-theme] .settings-dialog::-webkit-scrollbar-thumb:hover{border-width:3px;background-color:var(--sf-scroll-hover)}
+:root[data-theme] .settings-dialog::-webkit-scrollbar-button{display:none}
+@supports not selector(::-webkit-scrollbar){:root[data-theme] .settings-dialog{scrollbar-width:thin;scrollbar-color:var(--sf-scroll) transparent}}
+
+/* the rest of the page: no rules between sections, and one accent for links and states */
+:root[data-theme] .meeting-strip,:root[data-theme] .list-end,:root[data-theme] .desk-footer,:root[data-theme] #foot-tail{border-top:0;border-bottom:0}
+:root[data-theme] .meeting-strip{color:var(--sf-muted)}
+:root[data-theme] .card a{color:var(--sf-accent)}
+:root[data-theme] .viewer-name::before{background:var(--sf-tint);color:var(--sf-accent)}
+:root[data-theme] .state-chip{border-color:var(--sf-border);color:var(--sf-ink-3);font-family:inherit;font-weight:600}
+:root[data-theme] .badge,:root[data-theme] .badge.do,:root[data-theme] .badge.ask,:root[data-theme] .badge.decided,:root[data-theme] .badge.queued{background:var(--sf-fill);color:var(--sf-ink-3)}
+
+/* the meetings sidebar: a rail beside the page, Things-style list rows, the open meeting
+   a blue-tinted row; it runs to the foot of the window */
+:root[data-theme] .app-shell{min-height:calc(100vh - 76px)}
+/* a 1px screen-reader-only node after the shell would otherwise add a scrollbar */
+:root[data-theme] .sr-only{top:0;left:0}
+:root[data-theme] .meeting-nav{background:var(--sf-rail);border-right:1px solid var(--sf-rail-line)}
+:root[data-theme] .meeting-nav .eyebrow{font-family:var(--sans);font-size:11px;letter-spacing:.08em;color:var(--sf-muted)}
+:root[data-theme] .meeting-nav h2{font-size:17px;font-weight:700;letter-spacing:-.2px;color:var(--sf-ink)}
+:root[data-theme] .meeting-nav .muted{color:var(--sf-muted)}
+:root[data-theme] #meeting-links{gap:2px}
+:root[data-theme] :is(#meeting-links,.filter-group) a{min-height:0;padding:8px 10px;border:0;border-radius:8px;color:var(--sf-title);box-shadow:none}
+:root[data-theme] :is(#meeting-links,.filter-group) a:hover{background:var(--sf-row-hover)}
+:root[data-theme] :is(#meeting-links,.filter-group) a[aria-current=true]{background:var(--sf-tint);color:var(--sf-accent-ink);font-weight:600;box-shadow:none}
+/* The filters column's top row and Configure (ui/sidebar.js; layout in t4/layout.css). */
+:root[data-theme] .nav-title{font-size:14px;color:var(--sf-ink)}
+:root[data-theme] .nav-top-button{color:var(--sf-ink-3)}
+:root[data-theme] .nav-top-button:hover{background:var(--sf-fill)}
+:root[data-theme] .nav-top-button[aria-pressed=true]{background:var(--sf-tint);color:var(--sf-accent-ink)}
+:root[data-theme] .filter-config-row{color:var(--sf-title);font-size:13px}
+:root[data-theme] .filter-config-row:hover{background:var(--sf-row-hover)}
+:root[data-theme] .filter-config-row input{accent-color:var(--sf-accent)}
+:root[data-theme] .filter-config-plugins{color:var(--sf-accent)}
+:root[data-theme] .meeting-nav .filter-head a.filter-page{color:var(--sf-muted);font-weight:500}
+:root[data-theme] .meeting-nav .filter-head a.filter-page:hover{color:var(--sf-accent)}
+:root[data-theme] .filter-group .filter-more{color:var(--sf-accent)}
+:root[data-theme] .fi-mark{background:var(--sf-fill);color:var(--sf-ink-3)}
+:root[data-theme] .filter-meetings .fi-mark{background:var(--sf-ink-3)}
+:root[data-theme] .filter-group[data-group=people] .fi-mark{background:var(--sf-accent-soft);color:var(--sf-card)}
+:root[data-theme] .filter-group a[data-filter] b{color:var(--sf-muted)}
+:root[data-theme] .filter-group a[data-filter] small{color:var(--sf-muted);font-weight:400}
+/* No cards on the board: muted, still readable; its mark and count fade. */
+:root[data-theme] .filter-group a.zero .fi-text{color:var(--sf-muted)}
+:root[data-theme] .filter-config .muted,:root[data-theme] .filter-groups .muted{color:var(--sf-muted);font-weight:400}
+:root[data-theme] .nav-toggle.filtered::after{background:var(--sf-accent)}
+:root[data-theme] .nav-grip:hover,:root[data-theme] .nav-grip:focus-visible{background:linear-gradient(var(--sf-faint),var(--sf-faint)) center/2px 100% no-repeat}
+:root[data-theme] #meeting-links a small{color:var(--sf-muted);font-weight:400}
+:root[data-theme] #meeting-links a b{font-family:var(--sans);font-size:12px;font-weight:500;color:var(--sf-faint)}
+:root[data-theme] #meeting-links a[aria-current=true] b{color:var(--sf-accent-soft)}
+:root[data-theme] #meeting-links .meeting-day{font-family:var(--sans);font-size:11.5px;font-weight:600;letter-spacing:.02em;color:var(--sf-muted)}
+
+/* card details (the reader): the Settings sheet's language. Beside the board on the web it
+   is a sheet on the page colour, lifted on a soft shadow, 16px corners; where it replaces
+   the list (Zoom, a narrow window) it has no frame at all and sits on the page like the
+   list it replaced. Inside, the title and its grey meta sit on the sheet and each part
+   (the meeting quote, Related, the answer form, a receipt, Details) is a white card;
+   no rules between them and no coloured edges. The actions are small buttons, Send to
+   Claude the solid blue one, quiet ones in the accent otherwise. */
+:root[data-theme] body[data-view] .reader{border:0;border-radius:0;background:transparent;color:var(--sf-ink);box-shadow:none;overflow:visible}
+:root[data-theme] body[data-view].detail-open:not(.reader-replaces) .reader{border:0;border-radius:16px;background:var(--sf-page);box-shadow:var(--sf-shadow-panel);overflow:auto}
+:root[data-theme] body[data-view].detail-open:not(.reader-replaces) .reader::-webkit-scrollbar{width:12px}
+:root[data-theme] body[data-view].detail-open:not(.reader-replaces) .reader::-webkit-scrollbar-track{background:transparent;margin:18px 0}
+:root[data-theme] body[data-view].detail-open:not(.reader-replaces) .reader::-webkit-scrollbar-thumb{border:4px solid transparent;border-radius:999px;background:var(--sf-scroll) padding-box}
+:root[data-theme] body[data-view].detail-open:not(.reader-replaces) .reader::-webkit-scrollbar-thumb:hover{border-width:3px;background-color:var(--sf-scroll-hover)}
+:root[data-theme] body[data-view].detail-open:not(.reader-replaces) .reader::-webkit-scrollbar-button{display:none}
+@supports not selector(::-webkit-scrollbar){:root[data-theme] body[data-view].detail-open:not(.reader-replaces) .reader{scrollbar-width:thin;scrollbar-color:var(--sf-scroll) transparent}}
+/* where it replaces the list it keeps the page's right margin, the same as its left (an
+   older rule zeroed it, so the reader ran to the window's edge) */
+:root[data-theme] body.reader-replaces main#main{padding-right:24px}
+@media(max-width:700px){:root[data-theme] body.reader-replaces main#main{padding-right:16px}}
+:root[data-theme] body.surface-zoom.reader-replaces main#main{padding-right:12px}
+:root[data-theme] .reader :focus-visible{outline:2px solid var(--sf-accent);outline-offset:2px}
+
+/* the top bar: Close (or Back to cards) a quiet text button in the accent, the column a
+   grey pill */
+:root[data-theme] .reader-top{padding:14px 16px 4px 12px;border-bottom:0;background:var(--sf-page)}
+:root[data-theme] body.reader-replaces .reader-top{padding:4px 0}
+:root[data-theme] .reader-top #close-reader{padding:5px 10px;border:0;border-radius:8px;background:transparent;color:var(--sf-accent);font-size:13.5px;font-weight:600;box-shadow:none}
+:root[data-theme] body.reader-replaces .reader-top #close-reader{padding-left:4px}
+:root[data-theme] .reader-top #close-reader:hover{background:var(--sf-fill);color:var(--sf-accent)}
+:root[data-theme] .reader-top .reader-meeting{color:var(--sf-muted);font-size:12.5px}
+:root[data-theme] .reader-top .badge{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;letter-spacing:0}
+:root[data-theme] .reader-top .more-button{min-width:32px;border:0;border-radius:8px;background:transparent;color:var(--sf-accent);opacity:.75}
+:root[data-theme] .reader-top .more-button:hover,:root[data-theme] .reader-top .more-button[aria-expanded=true]{opacity:1;background:var(--sf-tint);color:var(--sf-accent)}
+
+/* the title and its meta: a calm title, tiny grey lines under it */
+:root[data-theme] .reader-body{padding:10px 22px 26px}
+:root[data-theme] body.reader-replaces .reader-body{padding:10px 0 28px}
+:root[data-theme] body.reader-replaces .reader-body>h2,:root[data-theme] body.reader-replaces .reader-body>p,:root[data-theme] body.reader-replaces .reader-body>.detail-meta{padding-left:4px;padding-right:4px}
+:root[data-theme] .reader-body h2{font-size:22px;font-weight:600;line-height:1.3;letter-spacing:-.3px;color:var(--sf-title)}
+:root[data-theme] .reader .detail-source{margin-top:6px;color:var(--sf-muted);font-size:13px}
+:root[data-theme] .reader .detail-meta{gap:8px;margin:2px 0 20px;color:var(--sf-muted);font-size:13px}
+:root[data-theme] .reader .detail-meta span:nth-child(2){color:var(--sf-faint)}
+:root[data-theme] .reader .editing-note{color:var(--sf-accent-ink);font-size:13px}
+:root[data-theme] .reader .eyebrow{font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--sf-muted)}
+
+/* the parts: white cards on the sheet */
+:root[data-theme] .reader .quote-preview,:root[data-theme] .reader-body>.evidence,:root[data-theme] .reader .detail-disclosure,:root[data-theme] .reader .route-form,:root[data-theme] .reader .status-box{margin:0 0 12px;padding:14px 16px;border:0;border-radius:12px;background:var(--sf-card);color:var(--sf-ink);box-shadow:var(--sf-shadow-card)}
+:root[data-theme] .reader .quote-preview{padding-bottom:4px;font-size:14px}
+:root[data-theme] .reader .quote-preview>p{margin-top:6px;color:var(--sf-ink-3);line-height:1.6}
+/* the full quote: a quiet grey block inside the card */
+:root[data-theme] .reader .quote-preview .evidence{margin:2px 0 12px;padding:12px 14px;border:0;border-radius:8px;background:var(--sf-fill);color:var(--sf-ink-3);font-size:13.5px}
+:root[data-theme] .reader .evidence .eyebrow{margin-bottom:8px}
+:root[data-theme] .reader .evidence b{color:var(--sf-ink);font-weight:600}
+:root[data-theme] .reader .receipt-ref{margin-top:10px;padding-top:8px;border-top:1px solid var(--sf-line);color:var(--sf-meta);font-size:10.5px}
+
+/* disclosures: a chevron that turns when open, in place of the black triangle */
+:root[data-theme] .reader details>summary{display:flex;align-items:center;gap:6px;list-style:none}
+:root[data-theme] .reader details>summary::-webkit-details-marker{display:none}
+:root[data-theme] .reader details>summary::after{content:"";flex:none;width:10px;height:10px;background:currentColor;transition:transform .15s ease;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M3.5 1.8 6.7 5 3.5 8.2' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/10px no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M3.5 1.8 6.7 5 3.5 8.2' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/10px no-repeat}
+:root[data-theme] .reader details[open]>summary::after{transform:rotate(90deg)}
+@media(prefers-reduced-motion:reduce){:root[data-theme] .reader details>summary::after{transition:none}}
+:root[data-theme] .reader .quote-preview summary{width:fit-content;padding:8px 0;color:var(--sf-accent);font-size:13px;font-weight:600}
+:root[data-theme] .reader .detail-disclosure{padding:0 16px;font-size:13.5px}
+:root[data-theme] .reader .detail-disclosure>summary{justify-content:space-between;min-height:44px;padding:10px 0;color:var(--sf-title);font-size:14px;font-weight:600}
+:root[data-theme] .reader .detail-disclosure>summary::after{color:var(--sf-faint)}
+:root[data-theme] .reader .detail-disclosure[open]{padding-bottom:12px}
+:root[data-theme] .reader .detail-disclosure p{margin-top:2px}
+:root[data-theme] .reader .rel-line{color:var(--sf-ink-3)}
+:root[data-theme] .reader .rel-line b{color:var(--sf-muted);font-weight:500}
+:root[data-theme] .reader .rel-line a,:root[data-theme] .reader .reader-replaced a{color:var(--sf-accent);text-decoration:none;font-weight:600}
+
+/* actions: small buttons on the sheet, Send to Claude the solid one; Zoom keeps 44px */
+:root[data-theme] .reader .action-row{gap:8px;margin:20px 0 0}
+:root[data-theme] .reader .action-row button{min-height:34px;padding:5px 15px;border:1px solid var(--sf-btn-border);border-radius:8px;background:var(--sf-card);color:var(--sf-ink);font-size:13px;font-weight:500;box-shadow:none}
+:root[data-theme] .reader .action-row button:hover:not(:disabled):not([aria-disabled=true]){border-color:var(--sf-btn-border-hover);background:var(--sf-btn-hover);color:var(--sf-ink)}
+:root[data-theme] .reader .action-row button[aria-disabled=true]{opacity:.45}
+:root[data-theme] .reader .action-row #send-open:not([aria-disabled=true]),:root[data-theme] #reader .primary{border:1px solid var(--sf-solid);background:var(--sf-solid);color:#fff}
+:root[data-theme] .reader .action-row #send-open:not([aria-disabled=true]):hover,:root[data-theme] #reader .primary:hover:not(:disabled){border-color:var(--sf-solid-hover);background:var(--sf-solid-hover);color:#fff}
+:root[data-theme] #reader .primary{min-height:34px;padding:5px 18px;border-radius:8px;font-size:13.5px;font-weight:500;box-shadow:none}
+:root[data-theme] #reader .primary:disabled{opacity:.5}
+:root[data-theme] body.surface-zoom .reader .action-row button,:root[data-theme] body.surface-zoom #reader .primary{min-height:44px}
+:root[data-theme] .reader #action-status:empty{display:none}
+:root[data-theme] .reader #edit-area:not(:empty){margin-top:18px}
+:root[data-theme] .reader #route-area{margin-top:20px}
+:root[data-theme] .reader #route-area:empty,:root[data-theme] .reader #route-form:empty{display:none}
+:root[data-theme] .reader .text-button{padding:6px 2px;border:0;background:transparent;color:var(--sf-accent);font-size:13px;font-weight:600;text-decoration:none}
+:root[data-theme] .reader .text-button:hover:not(:disabled){background:transparent;color:var(--sf-accent-ink)}
+
+/* the answer and edit forms: a card with calm fields; the answer form's ANSWER eyebrow
+   only repeated its heading */
+:root[data-theme] .reader .route-form{padding:16px 16px 18px}
+:root[data-theme] .reader #clarify-form>.eyebrow{display:none}
+:root[data-theme] .reader .route-form h3{margin:0 0 2px;color:var(--sf-title);font-size:15.5px;font-weight:600}
+:root[data-theme] .reader .field-label{margin:14px 0 6px;color:var(--sf-ink-3);font-size:12.5px;font-weight:600}
+:root[data-theme] .reader .route-form>.eyebrow+.field-label{margin-top:8px}
+:root[data-theme] .reader .field-label .muted{color:var(--sf-muted);font-weight:400}
+:root[data-theme] .reader input,:root[data-theme] .reader select,:root[data-theme] .reader textarea{border:1px solid var(--sf-btn-border);border-radius:10px;background:var(--sf-card);color:var(--sf-ink);font-size:14.5px;box-shadow:none}
+:root[data-theme] .reader textarea{min-height:96px;line-height:1.5}
+:root[data-theme] .reader input:hover,:root[data-theme] .reader select:hover,:root[data-theme] .reader textarea:hover{border-color:var(--sf-btn-border-hover)}
+:root[data-theme] .reader input:focus,:root[data-theme] .reader select:focus,:root[data-theme] .reader textarea:focus{border-color:var(--sf-accent);outline:2px solid var(--sf-tint-line);outline-offset:0}
+:root[data-theme] body.surface-zoom .reader input,:root[data-theme] body.surface-zoom .reader select,:root[data-theme] body.surface-zoom .reader textarea{font-size:16px}
+:root[data-theme] .reader .draft-status,:root[data-theme] .reader #edit-status{margin:8px 0 12px;color:var(--sf-muted);font-size:12.5px}
+:root[data-theme] .reader #clarify-form button{margin:0}
+:root[data-theme] .reader .route-form .action-row{margin-top:4px}
+
+/* a receipt, a failure, a note */
+:root[data-theme] .reader .status-box .eyebrow{color:var(--sf-accent)}
+:root[data-theme] .reader .status-box h3{margin:4px 0 2px;color:var(--sf-title);font-size:15.5px;font-weight:600}
+:root[data-theme] .reader .status-box p{color:var(--sf-ink-3)}
+:root[data-theme] .reader .status-box code{color:var(--sf-meta)}
+:root[data-theme] .reader .status-box button{margin-top:10px}
+:root[data-theme] .reader .error-box{margin:0 0 12px;padding:12px 14px;border:0;border-radius:10px;background:var(--sf-live-tint);color:var(--sf-ink)}
+:root[data-theme] .reader .error-box h3{margin-bottom:4px;color:var(--sf-live-ink);font-size:14px;font-weight:600}
+:root[data-theme] .reader .session-help{color:var(--sf-muted);font-size:12.5px}
+:root[data-theme] .reader .session-help.warn{color:var(--sf-live-ink)}
+:root[data-theme] .reader .context-note{padding:2px 2px 0;border-top:0;color:var(--sf-ink-3);font-size:13px}
+:root[data-theme] .reader .context-note h3{color:var(--sf-title);font-size:14px;font-weight:600}
+:root[data-theme] .reader .context-note p{margin-top:4px;color:var(--sf-muted)}
+:root[data-theme] .reader .reader-replaced{margin:10px 22px 0;padding:10px 14px;border:0;border-radius:12px;background:var(--sf-tint);color:var(--sf-accent-ink)}
+:root[data-theme] body.reader-replaces .reader .reader-replaced{margin:8px 0 0}
+
+/* the ... menu: a small lifted card of rows */
+:root[data-theme] .more-menu{padding:4px;border:0;border-radius:10px;background:var(--sf-card);color:var(--sf-ink);box-shadow:var(--sf-shadow-card-hover)}
+:root[data-theme] .more-menu button{border-radius:7px;color:var(--sf-ink);font-size:13.5px;font-weight:500}
+:root[data-theme] .more-menu button:hover:not([aria-disabled=true]){background:var(--sf-row-hover)}
+:root[data-theme] .more-menu button[aria-disabled=true]{color:var(--sf-faint)}
+:root[data-theme] .more-menu p{color:var(--sf-muted)}
+:root[data-theme] .more-menu :focus-visible{outline:2px solid var(--sf-accent);outline-offset:-2px}
+
+/* Send to Claude is the card's one main action (10/6): in the details view a
+   form's own submit (Save answer, Save) is outlined, so only Send to Claude
+   is solid blue */
+:root[data-theme] #reader form .primary{border:1px solid var(--sf-btn-border);background:var(--sf-card);color:var(--sf-title)}
+:root[data-theme] #reader form .primary:hover:not(:disabled){border-color:var(--sf-btn-border-hover);background:var(--sf-btn-hover);color:var(--sf-title)}
+
+/* the pick dialogs (Send to Claude, Change owner): a sheet like Settings, each choice a
+   lifted row; the session or person you pick is the action, so a row lights up blue */
+:root[data-theme] .pick-dialog{padding:20px;border:0;border-radius:16px;background:var(--sf-page);color:var(--sf-ink);box-shadow:var(--sf-shadow-dialog)}
+:root[data-theme] .pick-dialog::backdrop{background:var(--sf-backdrop)}
+:root[data-theme] .pick-dialog .send-dialog-head{align-items:center;border-bottom:0}
+:root[data-theme] .pick-dialog .send-dialog-head h2{font-size:20px;font-weight:700;letter-spacing:-.4px;color:var(--sf-ink)}
+:root[data-theme] .pick-dialog .text-button{border:0;background:transparent;color:var(--sf-accent);text-decoration:none;font-weight:600}
+/* B7: the drawer's close is a grey ✕ that fills on hover. */
+:root[data-theme] :is(.settings-dialog,.pick-dialog) .settings-close{border:0;background:transparent;color:var(--sf-muted)}
+:root[data-theme] :is(.settings-dialog,.pick-dialog) .settings-close:hover{background:var(--sf-fill);color:var(--sf-ink)}
+:root[data-theme] .pick-dialog .send-dialog-who{color:var(--sf-muted);font-size:13px}
+:root[data-theme] .pick-dialog .field-label{color:var(--sf-ink-3);font-size:13px;font-weight:600}
+:root[data-theme] .pick-dialog textarea,:root[data-theme] .pick-dialog input{border:1px solid var(--sf-btn-border);border-radius:10px;background:var(--sf-card);color:var(--sf-ink);font-size:14.5px;box-shadow:none}
+:root[data-theme] .pick-dialog textarea{min-height:84px;line-height:1.5}
+:root[data-theme] .pick-dialog textarea:focus,:root[data-theme] .pick-dialog input:focus{border-color:var(--sf-accent);outline:2px solid var(--sf-tint-line);outline-offset:0}
+:root[data-theme] .pick-dialog .send-group{display:grid;gap:8px}
+:root[data-theme] .pick-dialog .send-session{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:48px;padding:10px 14px;border:0;border-radius:12px;background:var(--sf-card);color:var(--sf-title);text-align:left;box-shadow:var(--sf-shadow-card)}
+:root[data-theme] .pick-dialog .send-session:hover:not(:disabled){background:var(--sf-tint);color:var(--sf-accent-ink);box-shadow:var(--sf-shadow-card-hover)}
+:root[data-theme] .pick-dialog .send-session:focus-visible{outline:2px solid var(--sf-accent);outline-offset:2px}
+:root[data-theme] .pick-dialog .send-session-name{display:inline-flex;align-items:center;gap:8px;font-size:14.5px;font-weight:600}
+:root[data-theme] .pick-dialog .send-session-meta{color:var(--sf-muted);font-size:12.5px;font-weight:500}
+:root[data-theme] .pick-dialog .send-session:disabled{opacity:1;cursor:default;background:var(--sf-fill);box-shadow:none;color:var(--sf-ink-3)}
+:root[data-theme] .pick-dialog .session-help{color:var(--sf-muted);font-size:12.5px}
+/* Send to Claude: the sessions in one white surface with hairlines, not a lifted card each;
+   the name is the one thing to read. Fresh is a green dot; an older session's age is amber.
+   The row you are on (or picked, or writing a note to) tints blue. */
+:root[data-theme] :is(.pick-dialog,.account-menu) .send-list{--line:var(--sf-line);display:flex;flex-direction:column;gap:0;border:0;border-radius:12px;background:var(--sf-card);box-shadow:var(--sf-shadow-card)}
+:root[data-theme] :is(.pick-dialog,.account-menu) .send-list .send-session-row{transition:background-color .15s}
+:root[data-theme] :is(.pick-dialog,.account-menu) .send-list .send-session-row:is(:hover,:focus-within,.noting,.sent),:root[data-theme] :is(.pick-dialog,.account-menu) .send-row-note{background:var(--sf-tint)}
+:root[data-theme] :is(.pick-dialog,.account-menu) .send-list .send-session-row:has(.send-session:focus-visible){box-shadow:inset 0 0 0 2px var(--sf-accent)}
+:root[data-theme] :is(.pick-dialog,.account-menu) .send-list .send-session,:root[data-theme] :is(.pick-dialog,.account-menu) .send-list .send-session:hover:not(:disabled){justify-content:flex-start;gap:10px;min-height:44px;padding:0 0 0 14px;border-radius:0;background:transparent;box-shadow:none;color:var(--sf-title)}
+:root[data-theme] :is(.pick-dialog,.account-menu) .send-list .send-session:focus-visible{outline:0}
+:root[data-theme] :is(.pick-dialog,.account-menu) .send-list .send-session-name{display:block}
+:root[data-theme] :is(.pick-dialog,.account-menu) .send-dot{background:var(--sf-ok)}
+:root[data-theme] :is(.pick-dialog,.account-menu) .send-dot.old{background:var(--sf-faint)}
+:root[data-theme] :is(.pick-dialog,.account-menu) .send-session-meta.old{color:var(--sf-warn)}
+:root[data-theme] .pick-dialog .send-session-row.sent .send-dot{background:var(--sf-accent)}
+:root[data-theme] .pick-dialog .send-machine{color:var(--sf-muted);font-weight:500}
+:root[data-theme] :is(.pick-dialog,.account-menu) :is(.send-pin,.send-note-btn){color:var(--sf-muted);transition:opacity .12s}
+:root[data-theme] :is(.pick-dialog,.account-menu) :is(.send-pin,.send-note-btn):hover{background:var(--sf-fill);color:var(--sf-ink)}
+:root[data-theme] :is(.pick-dialog,.account-menu) :is(.send-pin.on,.send-note-btn[aria-expanded=true]){color:var(--sf-accent)}
+:root[data-theme] :is(.pick-dialog,.account-menu) .send-heading{color:var(--sf-muted)}
+:root[data-theme] .pick-dialog .send-row-note textarea{min-height:0}
+:root[data-theme] .pick-dialog .send-note-go{padding:5px 14px;border:0;border-radius:8px;background:var(--sf-accent);color:#fff;font-size:13px;font-weight:600}
+:root[data-theme] .pick-dialog .send-find{padding:7px 10px}
+@media (prefers-reduced-motion:reduce){:root[data-theme] :is(.pick-dialog,.account-menu) .send-list .send-session-row,:root[data-theme] :is(.pick-dialog,.account-menu) :is(.send-pin,.send-note-btn){transition:none}}
+
+:root[data-theme] .settings-dialog .settings-foot{border-top:0;color:var(--sf-muted)}
+
+/* each card's type mark, just left of its number (desk.js): the tonal set from the icon
+   study, a coloured glyph on a rounded tint of the same colour, 25% corners; 14px so it
+   sits with the small meta text rather than shouting over it */
+:root[data-theme] .type-icon .ti-bg{fill:var(--ti-bg);stroke:none}
+:root[data-theme] .type-icon .ti-g{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+:root[data-theme] .type-icon .ti-f{fill:currentColor;stroke:none}
+:root[data-theme] .type-icon .ti-cut{fill:none;stroke:var(--ti-bg);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+:root[data-theme] .type-icon[data-type=do]{--ti-bg:var(--sf-type-do-bg);color:var(--sf-type-do)}
+:root[data-theme] .type-icon[data-type=ask]{--ti-bg:var(--sf-type-ask-bg);color:var(--sf-type-ask)}
+:root[data-theme] .type-icon[data-type=risk]{--ti-bg:var(--sf-type-risk-bg);color:var(--sf-type-risk)}
+:root[data-theme] .type-icon[data-type=decided]{--ti-bg:var(--sf-type-decided-bg);color:var(--sf-type-decided)}
+@media(forced-colors:active){:root[data-theme] .type-icon .ti-bg{fill:Canvas;stroke:CanvasText;stroke-width:1}:root[data-theme] .type-icon{color:CanvasText}}
+
+/* ── Make room (mock-ups: the planning record, specs/board-delight, four-views) ──
+   The Zoom panel's header is one row of icons with the meeting's name under it; the cards in a column are rows on one sheet; a card's
+   footer opens when it needs you, on hover, on focus or open; the full board's hidden
+   columns are spines. */
+
+/* Live (settings redesign A2): a pill beside the meeting's name, its red dot and the word, on
+   both surfaces. Status only: asking bwat to leave is in Settings (B3/B4, settings.js). */
+:root[data-theme] .brand-meeting,:root[data-theme] .viewer-initial{display:none}
+:root[data-theme] .app-header{position:relative}
+:root[data-theme] .live-pill{display:inline-flex;align-items:center;gap:6px;flex:none;min-height:28px;padding:0 10px;border:1px solid var(--sf-border);border-radius:999px;background:var(--sf-card);color:var(--sf-ink);font-size:12px;font-weight:600;cursor:default}
+:root[data-theme] .live-pill[hidden]{display:none}
+:root[data-theme] .live-pill-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--sf-live);flex:none}
+:root[data-theme] .live-pill:is(.fading,.absent) .live-pill-dot{background:var(--sf-faint)}
+:root[data-theme] .live-left-note{margin:0 0 8px;font-size:12px;color:var(--sf-muted)}
+
+/* Zoom: the lens, then Live, Full board, you and Settings as icons, in one row; the meeting's
+   whole name on the line under it, up to two lines, then the card writer's word (#meeting-meta). */
+:root[data-theme] body.surface-zoom .app-header{gap:8px;padding:8px 10px 4px 12px}
+:root[data-theme] body.surface-zoom .brand span{display:none}
+/* The meeting's name on the lens row, one line cut short: the panel's room goes to its cards. */
+:root[data-theme] body.surface-zoom .app-header{flex-wrap:nowrap}
+:root[data-theme] body.surface-zoom .brand-meeting{flex:1 1 auto;display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px;font-size:15px;font-weight:700;line-height:1.3;letter-spacing:-.2px;color:var(--sf-ink)}
+:root[data-theme] body.surface-zoom .brand-meeting:empty{display:none}
+:root[data-theme] body.surface-zoom .open-full{margin-left:0;width:44px;min-height:44px;padding:0;border:0;border-radius:8px;justify-content:center;background:transparent}
+:root[data-theme] body.surface-zoom .open-full .open-full-text{display:none}
+:root[data-theme] body.surface-zoom .open-full::before{content:"";width:16px;height:16px;background:currentColor;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M14 5h5v5M19 5l-8 8M18 14v5H5V6h5' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M14 5h5v5M19 5l-8 8M18 14v5H5V6h5' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
+:root[data-theme] body.surface-zoom .open-full:hover{background:var(--sf-fill)}
+/* You: your initial in a small circle; the name picker is still there, invisible, over it. */
+:root[data-theme] body.surface-zoom .viewer-label{position:relative;flex:none;display:grid;place-items:center;width:44px;height:44px}
+:root[data-theme] body.surface-zoom .viewer-initial{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--sf-accent);color:#fff;font-size:11.5px;font-weight:700}
+:root[data-theme] body.surface-zoom .viewer-label:focus-within .viewer-initial{outline:2px solid var(--sf-accent);outline-offset:2px}
+/* Signed in, the name is the account menu's button, invisible over the initial, which says it in sight. */
+:root[data-theme] body.surface-zoom .viewer-label.locked .viewer-name{position:absolute;inset:0;width:100%;max-width:none;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer}
+:root[data-theme] body.surface-zoom .meeting-strip{margin:0 0 6px 2px;font-size:12px;color:var(--sf-muted)}
+
+/* Zoom: one filter row, the tabs then Mine's switch at its end. The four tabs are their type marks,
+   as chips (below); only the selected one is named. */
+:root[data-theme] body.surface-zoom .zoom-filter{display:flex;align-items:center;gap:6px;margin:2px 0 8px}
+:root[data-theme] body.surface-zoom .zoom-mine{display:inline-flex;align-items:center;gap:8px;margin-left:auto;padding:0 2px;color:var(--sf-ink-3);font-size:13px;font-weight:600;cursor:pointer}
+:root[data-theme] body.surface-zoom .zoom-tabs{gap:4px;margin:0;border-bottom:0}
+/* No gap: a collapsed name would keep it and push the mark off centre; the name carries its own margin. */
+:root[data-theme] body.surface-zoom .zoom-tabs button{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:0;min-height:36px;padding:0 8px;border-radius:9px}
+@media (pointer:coarse){:root[data-theme] body.surface-zoom .zoom-tabs button{min-height:44px}}
+:root[data-theme] body.surface-zoom .zoom-tabs button .type-icon{margin:0}
+:root[data-theme] body.surface-zoom .zoom-tabs .tab-name{max-width:0;margin-left:0;overflow:hidden;white-space:nowrap;font-size:13px;transition:max-width .3s ease,margin-left .3s ease}
+:root[data-theme] body.surface-zoom .zoom-tabs button[aria-selected=true] .tab-name{max-width:100px;margin-left:6px}
+@media (prefers-reduced-motion:reduce){:root[data-theme] body.surface-zoom .zoom-tabs .tab-name{transition:none}}
+
+/* Zoom: a title stops at two lines; the open card shows all of it. */
+:root[data-theme] body.surface-zoom .card-title h3{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
+
+/* Zoom: one column at a time, named by its tab, so its heading is for screen readers only. */
+
+/* Rows, not cards: a column's cards are rows on one sheet, split by hairlines. */
+:root[data-theme] body[data-view=desk] .desk-column>.card{margin:0;border-radius:0;box-shadow:none;border-top:1px solid var(--sf-line)}
+:root[data-theme] body[data-view=desk] .desk-column>.card:first-of-type{border-top:0;border-radius:12px 12px 0 0}
+:root[data-theme] body[data-view=desk] .desk-column>.card:last-of-type{border-radius:0 0 12px 12px}
+:root[data-theme] body[data-view=desk] .desk-column>.card:only-of-type{border-radius:12px}
+:root[data-theme] body[data-view=desk] .desk-column>.card:hover{background:var(--sf-row-hover);box-shadow:none}
+:root[data-theme] body[data-view=desk] .desk-column>.card.selected{background:var(--sf-tint);box-shadow:inset 0 0 0 1.5px var(--sf-tint-line)}
+/* Top, left and bottom only: the right padding is the owner's initial and the menu's (below). */
+:root[data-theme] body[data-view=desk] .desk-column>.card .card-open{padding-top:12px;padding-left:16px;padding-bottom:4px}
+
+/* The owner on the title line, left of the "⋯" menu. */
+:root[data-theme] .card>.card-owner{position:absolute;top:12px;right:42px;width:20px;height:20px;font-size:9.5px;pointer-events:none}
+:root[data-theme] .card:has(>.card-owner) .card-open{padding-right:70px}
+
+/* The footer: open on a card that needs you, on hover, keyboard focus or the open card;
+   otherwise folded away. A touch screen has no hover, so there it opens on the open card. */
+:root[data-theme] body[data-view=desk] .card .card-foot{transition:max-height .22s cubic-bezier(.3,.7,.2,1),opacity .18s,padding .22s}
+:root[data-theme] body[data-view=desk] .card:not(.needs):not(.selected):not(:focus-within) .card-foot{max-height:0;overflow:hidden;opacity:0;padding-top:0;padding-bottom:8px}
+@media (hover:hover){:root[data-theme] body[data-view=desk] .card:not(.needs):not(.selected):not(:focus-within):hover .card-foot{max-height:240px;opacity:1;padding-top:4px;padding-bottom:12px}}
+:root[data-theme] body[data-view=desk] .card .card-foot .avatar{display:none}
+/* The type mark leads the title; the meta line and footer line up under the title's text. */
+:root[data-theme] .card-title{display:flex;gap:9px;align-items:flex-start}
+:root[data-theme] .card-title .type-icon{flex:none;margin-top:3px}
+:root[data-theme] .card-title h3{flex:1;min-width:0;margin:0}
+:root[data-theme] .card-title~.card-source{padding-left:25px} /* the 16px mark and its 9px gap */
+/* No ID on a row (the mock-up): the opened card shows it. A line that holds only the ID goes. */
+:root[data-theme] body[data-view=desk] .card .card-source.only-code{display:none}
+:root[data-theme] body[data-view=desk] .card .card-code,:root[data-theme] body[data-view=desk] .card .card-sep{display:none}
+@media (prefers-reduced-motion:reduce){:root[data-theme] body[data-view=desk] .card .card-foot{transition:none}}
+
+/* The full board fits its width: columns narrow to 260px, then wrap to the next row, rather than scroll sideways.
+   A column alone on the last row takes the row's width, as a stacked layout would. */
+:root[data-theme] body:not(.surface-zoom)[data-view=desk] .desk-columns{flex-wrap:wrap;overflow-x:visible}
+:root[data-theme] body:not(.surface-zoom)[data-view=desk] .desk-column{flex:1 1 260px}
+
+/* One type filter in Zoom and on the web (D74): every type is an outlined chip, its mark in its
+   type's colour on no tint, so the four read as one set of buttons (A179); the chosen one fills
+   with its type's tint. Zoom names only the chosen tab; the web names every chip. */
+:root[data-theme] button.type-chip{border:1px solid var(--sf-border);background:transparent;box-shadow:none}
+:root[data-theme] button.type-chip:hover:not(:disabled){border-color:var(--sf-border-hover);background:transparent}
+:root[data-theme] button.type-chip:is([aria-selected=true],[aria-pressed=true]){background:var(--arrive);border-color:color-mix(in srgb,var(--type-ink) 35%,transparent);color:var(--sf-chip-ink);box-shadow:none}
+:root[data-theme] button.type-chip:is([aria-selected=true],[aria-pressed=true]):hover:not(:disabled){background:var(--arrive);border-color:var(--type-ink)}
+:root[data-theme] .type-chip .type-icon .ti-bg{fill:transparent}
+/* The decision seal's cut shows what is behind the chip. */
+:root[data-theme] button.type-chip .type-icon{--ti-bg:var(--sf-page)}
+:root[data-theme] button.type-chip:is([aria-selected=true],[aria-pressed=true]) .type-icon{--ti-bg:var(--arrive)}
+@media(forced-colors:active){:root[data-theme] button.type-chip:is([aria-selected=true],[aria-pressed=true]){border-color:Highlight;border-width:2px}:root[data-theme] .type-chip .type-icon .ti-bg{fill:Canvas}}
+:root[data-theme] .type-chips{display:flex;flex-wrap:wrap;gap:6px}
+:root[data-theme] .type-chips[hidden]{display:none}
+:root[data-theme] .type-chips button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 11px 0 9px;border-radius:9px;color:var(--sf-ink-3);font-size:13px;font-weight:600}
+@media (pointer:coarse){:root[data-theme] .type-chips button{min-height:44px}}
+/* B5: the last column's chip, clicked, says it stays on in a tip under it. */
+:root[data-theme] .type-chips button{position:relative}
+:root[data-theme] .type-chip[data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);left:0;z-index:5;width:max-content;padding:6px 9px;border-radius:6px;background:var(--sf-ink);color:var(--sf-page);font-size:12px;font-weight:500;pointer-events:none;box-shadow:0 4px 14px #0003}
+/* B2: what narrows the full board, one line under the title: a chip per filter, then Clear filters. */
+:root[data-theme] .showing-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 0;font-size:13px;color:var(--sf-muted)}
+:root[data-theme] .showing-line[hidden]{display:none}
+:root[data-theme] .showing-chip{display:inline-flex;align-items:center;gap:2px;height:26px;padding:0 4px 0 11px;border:1px solid var(--sf-accent);border-radius:999px;background:transparent;color:var(--sf-accent);font-weight:500;line-height:1}
+/* An active filter in Zoom's style: a blue outline and blue text. Its × sits inside the
+   pill's right end, always there, as a dismissible tag's is; a tinted circle on hover, and a 24px target that reaches past the 18px circle. */
+:root[data-theme] .showing-x{position:relative;display:inline-grid;place-items:center;flex:none;width:18px;height:18px;min-height:0;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}
+:root[data-theme] .showing-x::before{content:"";position:absolute;inset:-3px}
+:root[data-theme] .showing-x svg{width:10px;height:10px;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+:root[data-theme] .showing-x:hover{background:color-mix(in srgb,var(--sf-accent) 14%,transparent)}
+:root[data-theme] .showing-clear{min-height:28px;padding:0 6px;border:0;background:transparent;color:var(--sf-accent-ink);font-weight:600}
+/* Arrival: a new or changed card, and the tab or chip it landed behind, washes once in its
+   type's colour (keyframes in delight.css), inside its own edges -- no ring. */
+:root[data-theme] .card:has(.type-icon[data-type=do]),:root[data-theme] [data-tab=do],:root[data-theme] [data-col-toggle=do]{--arrive:var(--sf-type-do-bg);--type-ink:var(--sf-type-do)}
+:root[data-theme] .card:has(.type-icon[data-type=ask]),:root[data-theme] [data-tab=ask],:root[data-theme] [data-col-toggle=ask]{--arrive:var(--sf-type-ask-bg);--type-ink:var(--sf-type-ask)}
+:root[data-theme] .card:has(.type-icon[data-type=risk]),:root[data-theme] [data-tab=risk],:root[data-theme] [data-col-toggle=risk]{--arrive:var(--sf-type-risk-bg);--type-ink:var(--sf-type-risk)}
+:root[data-theme] .card:has(.type-icon[data-type=decided]),:root[data-theme] [data-tab=decided],:root[data-theme] [data-col-toggle=decided]{--arrive:var(--sf-type-decided-bg);--type-ink:var(--sf-type-decided)}
+:root[data-theme] .card.is-changed,:root[data-theme] .has-news{animation:arrive-wash 1.6s ease-out 1}
+@media (prefers-reduced-motion:reduce){:root[data-theme] .card.is-changed{animation:none;outline:none}:root[data-theme] .has-news,:root[data-theme] button.type-chip.has-news{animation:none;box-shadow:none;background-color:var(--arrive)}}
+
+/* Keep's line under an expiring card's source line (lifecycle.js), and the card's own line in the
+   same place (study.js noteCard; its colours and fold: delight.css 11). */
+:root[data-theme] .card-rel :is(.keep-line,.card-line){flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-height:24px;margin-top:-2px}
+:root[data-theme] .card-rel .keep-line{font-size:12px;color:var(--sf-meta)}
+:root[data-theme] .card:has(.card-title) .card-rel :is(.keep-line,.card-line){margin-left:25px}
+:root[data-theme] body[data-view=desk] .desk-column>.card:has(.card-title) .card-rel :is(.keep-line,.card-line){margin-left:23px}
+:root[data-theme] .keep-line .sep{color:var(--sf-faint)}
+:root[data-theme] .keep-line.r2{color:var(--sf-warn-ink)}
+:root[data-theme] .keep-line.r1{color:var(--sf-live-ink)}
+:root[data-theme] .keep-line.r2 .lab,:root[data-theme] .keep-line.r1 .lab{padding:1px 7px;border-radius:999px;font-weight:600}
+:root[data-theme] .keep-line.r2 .lab{background:var(--sf-warn-tint)}
+:root[data-theme] .keep-line.r1 .lab{background:var(--sf-live-tint)}
+:root[data-theme] .keep-line .keep{min-height:24px;margin:0 -6px;padding:2px 6px;background:transparent;color:var(--sf-accent);font-size:12px;text-decoration:none;cursor:pointer}
+:root[data-theme] .keep-line .keep:hover:not(:disabled){background:var(--sf-tint)}
+:root[data-theme] .keep-line .keep:disabled{opacity:.55;cursor:default}
+:root[data-theme] .keep-line .keep:focus-visible{outline:2px solid var(--sf-accent);outline-offset:1px}
+@media (pointer:coarse){:root[data-theme] .keep-line .keep{min-height:44px}}
+
+/* Rows as the mock-up packs them, for a mouse; a finger keeps the roomier rows above. */
+@media (pointer:fine){
+  :root[data-theme] body[data-view=desk] .desk-column>.card .card-open{padding-top:9px;padding-left:12px;padding-bottom:2px}
+  :root[data-theme] body[data-view=desk] .desk-column>.card h3{font-size:14px}
+  :root[data-theme] body[data-view=desk] .desk-column>.card .card-foot{padding:5px 12px 10px 37px}
+  :root[data-theme] body[data-view=desk] .desk-column>.card:has(.card-title) .card-rel :is(.keep-line,.card-line){margin-left:19px}
+  :root[data-theme] body[data-view=desk] .desk-column>.card:not(.needs):not(.selected):not(:focus-within) .card-foot{padding-top:0;padding-bottom:7px}
+  :root[data-theme] body[data-view=desk] .desk-column>.card>.card-owner{top:9px}
+  :root[data-theme] body[data-view=desk] .desk-column>.card>.more-button{top:4px}
+}
+@media (pointer:fine) and (hover:hover){:root[data-theme] body[data-view=desk] .desk-column>.card:not(.needs):not(.selected):not(:focus-within):hover .card-foot{padding-top:5px;padding-bottom:10px}}
+
+/* The "⋯" menu shows when the row is pointed at, focused or open; a finger always sees it. */
+:root[data-theme] body[data-view=desk] .card>.more-button{opacity:0;transition:opacity .15s}
+:root[data-theme] body[data-view=desk] .card:hover>.more-button,:root[data-theme] body[data-view=desk] .card:focus-within>.more-button,
+:root[data-theme] body[data-view=desk] .card.selected>.more-button,:root[data-theme] body[data-view=desk] .card>.more-button[aria-expanded=true]{opacity:.75}
+@media (hover:none){:root[data-theme] body[data-view=desk] .card>.more-button{opacity:.75}}
+
+/* An unowned to-do: an empty, dashed place where its owner would be. */
+
+/* No "New" word on an arriving card: the wash says it (the mock-up). Under Reduce Motion the
+   wash holds still until the mark clears. */
+:root[data-theme] .card.is-new::after{content:none}
+@media (prefers-reduced-motion:reduce){:root[data-theme] .card.is-new,:root[data-theme] .card.is-changed{background-color:var(--arrive)}}
+
+/* The logo is filled shapes only: no stroke from the base svg rule (it drew a light ring). */
+:root[data-theme] .brand-lens{stroke:none}
+
+/* The owner's initial lines up with the right edge of the row's buttons (the mock-up); the
+   "⋯" menu, shown on hover or focus, sits just left of it. */
+:root[data-theme] body[data-view=desk] .desk-column>.card>.card-owner{right:14px}
+:root[data-theme] body[data-view=desk] .desk-column>.card:has(>.card-owner)>.more-button{right:38px}
+@media (pointer:fine){:root[data-theme] body[data-view=desk] .desk-column>.card>.card-owner{right:12px}:root[data-theme] body[data-view=desk] .desk-column>.card:has(>.card-owner)>.more-button{right:36px}}
+
+/* Zoom header: Full board, your initial and Settings in one size of box, each glyph centred in
+   it (the mock-up's 16px glyphs, 24px initial): 36px with a mouse, 44px for a finger. */
+:root[data-theme] body.surface-zoom .open-full,:root[data-theme] body.surface-zoom .viewer-label,:root[data-theme] body.surface-zoom .settings-open{display:grid;place-items:center;width:36px;min-width:36px;height:36px;min-height:36px;margin:0;padding:0}
+:root[data-theme] body.surface-zoom .viewer-initial{width:24px;height:24px;font-size:11px}
+:root[data-theme] body.surface-zoom .settings-open svg{width:16px;height:16px}
+@media (pointer:coarse){:root[data-theme] body.surface-zoom .open-full,:root[data-theme] body.surface-zoom .viewer-label,:root[data-theme] body.surface-zoom .settings-open{width:44px;min-width:44px;height:44px;min-height:44px}}
+
+/* The full board's toolbar: Mine / Everything / Unassigned and Find a card stand the same
+   height, 36px with a mouse and 44px for a finger (the switch's 2px track round its buttons). */
+:root[data-theme] body:not(.surface-zoom) .toolbar .segmented button{min-height:32px}
+:root[data-theme] body:not(.surface-zoom) .toolbar .search input{min-height:36px;height:36px;padding-top:0;padding-bottom:0}
+@media (pointer:coarse){:root[data-theme] body:not(.surface-zoom) .toolbar .segmented button{min-height:40px}:root[data-theme] body:not(.surface-zoom) .toolbar .search input{min-height:44px;height:44px}}
+/* An unowned to-do in the Zoom panel asks once, on its title row: Take it where an owner's initial would sit. */
+:root[data-theme] body.surface-zoom .card.take-row>.card-open{min-height:58px !important;padding-right:96px}
+:root[data-theme] body.surface-zoom .card.take-row>.card-foot{position:absolute;top:29px;right:12px;transform:translateY(-50%);padding:0;background:transparent}
+/* The reader's quote: its speaker, then the words on a neutral highlight (delight.css .quote-hl). */
+:root[data-theme] .reader .quote-preview .quote-speaker{font-weight:600;color:var(--sf-ink)}
+/* One title line: the meeting and its start, its ⋯ beside it; the strip under it only when it has words. */
+:root[data-theme] .page-intro>div{display:flex;flex-wrap:wrap;align-items:center;column-gap:6px}
+:root[data-theme] .page-intro .showing-line{flex-basis:100%}
+:root[data-theme] .page-intro .meeting-more{min-height:32px;min-width:32px;padding:0 6px;border:0;border-radius:8px;background:transparent;color:var(--sf-accent);font-size:18px;line-height:1;opacity:.75}
+:root[data-theme] .page-intro .meeting-more:is(:hover,[aria-expanded=true]){opacity:1;background:var(--sf-tint)}
+:root[data-theme] .page-intro .meeting-more[hidden]{display:none}
+:root[data-theme] body:not(.surface-zoom) .meeting-strip:has(#meeting-meta:empty){display:none}
+:root[data-theme] .more-menu a[role=menuitem]{display:block;padding:8px 10px;border-radius:7px;color:var(--sf-ink);font-size:13.5px;font-weight:500;text-decoration:none}
+:root[data-theme] .more-menu a[role=menuitem]:hover{background:var(--sf-row-hover)}
+/* The meeting is live but bwat is not in it: the pill says so, muted, its dot grey. */
+:root[data-theme] .live-pill.absent{color:var(--sf-muted);font-weight:500}
+/* Loading: skeleton rows where the cards go (board.html #loading), never a blank page; still under Reduce Motion. */
+:root[data-theme] .card-skeleton{display:grid;gap:1px;margin-bottom:12px;border-radius:14px;overflow:hidden;background:var(--sf-line);box-shadow:var(--sf-shadow-card)}
+:root[data-theme] .card-skeleton-row{display:grid;gap:10px;padding:16px 14px;background:var(--sf-card)}
+:root[data-theme] .card-skeleton-row i{display:block;width:72%;height:12px;border-radius:6px;background:var(--sf-fill);animation:delight-shimmer 1.2s ease-in-out infinite alternate}
+:root[data-theme] .card-skeleton-row i+i{width:18%;height:9px}
+:root[data-theme] .card-skeleton-row:nth-child(2) i:first-child{width:58%}
+:root[data-theme] .card-skeleton-row:nth-child(3) i:first-child{width:80%}
+@media (prefers-reduced-motion:reduce){:root[data-theme] .card-skeleton-row i{animation:none}}

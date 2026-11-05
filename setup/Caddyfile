@@ -1,0 +1,43 @@
+# The edge: the one routing table; a hosted load balancer copies it (docs/hosting.md).
+# The card service's routes for people go to cards; every other /v1 route and /health to the
+# backend; everything else to the web app. The card service's backend-only routes (brief,
+# routed, progress, snapshot) are never on this door: the backend reaches them on the compose
+# network at http://cards:8000 (D169).
+# Plain HTTP on :8080 by default (docker-compose.yml); the installer sets BWAT_EDGE_ADDRESS to
+# the install's domain for TLS, and BWAT_ACME_CA for its tests.
+{
+	acme_ca {$BWAT_ACME_CA:https://acme-v02.api.letsencrypt.org/directory}
+}
+
+{$BWAT_EDGE_ADDRESS::8080} {
+	@cards path /v1/occurrences/*/cards /v1/occurrences/*/activity /v1/cards/*/owner /v1/cards/*/archive /v1/cards/*/unarchive /v1/cards/*/keep /v1/cards/*/move-back /v1/cards/*/unmerge /v1/cards/*/clarify /v1/cards/*/hint/* /v1/editing /v1/orders
+	handle @cards {
+		reverse_proxy cards:8000
+	}
+	# A card edit is PATCH on the card itself; only PATCH, so the backend-only routes under
+	# /v1/cards/<id>/ never pass this door.
+	@cardEdit {
+		method PATCH
+		path_regexp ^/v1/cards/[0-9a-fA-F-]{36}$
+	}
+	handle @cardEdit {
+		reverse_proxy cards:8000
+	}
+	# The open list (GET /v1/cards?status=open), each meeting's card count (/v1/cards/counts)
+	# and one card read on its own: only GET, and only the card itself, never
+	# /v1/cards/<id>/brief or /content (backend-only) or the backend's /v1/cards/settings.
+	@cardRead {
+		method GET
+		path_regexp ^/v1/cards(/[0-9a-fA-F-]{36}|/counts)?$
+	}
+	handle @cardRead {
+		reverse_proxy cards:8000
+	}
+	@backend path /v1/* /health
+	handle @backend {
+		reverse_proxy backend:3000
+	}
+	handle {
+		reverse_proxy web:8080
+	}
+}

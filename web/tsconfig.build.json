@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "server/src",
+    "plugins"
+  ],
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist"
+  }
+}

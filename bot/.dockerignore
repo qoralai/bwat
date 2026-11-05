@@ -1,0 +1,8 @@
+tests/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# The headless sample is cloned fresh for every build: its git metadata would change
+# the context, and so miss the build cache, on every run. Nothing in the build reads it.
+sdk/vendor/**/.git

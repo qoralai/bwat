@@ -1,0 +1,1854 @@
+:root {
+  /* The board's palette (web/pages/board/ui/soft.css, --sf-*), light then dark. The board
+     has no warning colour, so --warn-* stay the panel's own. */
+  color-scheme: light;
+  --bg: #f1f4f7;
+  --surface: #ffffff;
+  --text: #1d2129;
+  --muted: #5b6270;
+  --border: #d3d9e0;
+  --accent: #2f6fed;
+  --accent-text: #ffffff;
+  --accent-hover: #1f4fb8;
+  --error-bg: #fdecec;
+  --error-text: #b42318;
+  --ok-bg: #e2f3ea;
+  --ok-text: #17794b;
+  --warn-bg: #fff4d6;
+  --warn-text: #7a4b00;
+  --risk-bg: #fdebe1;
+  --risk-text: #c4500c;
+  --do-bg: #e6eefd;
+  --faint: #a0a6b1;
+  --line: #dde2e8;
+  --focus: #2f6fed;
+  --arc: #f15a36;
+  --lens: #231f20;
+  --radius: 8px;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  line-height: 1.5;
+}
+
+/* The board's Appearance choice (theme.ts): Dark sets data-theme, Device follows the device. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #14161b;
+    --surface: #1f232a;
+    --text: #e8eaed;
+    --muted: #a3aab5;
+    --border: #363c46;
+    --accent: #6b9bff;
+    --accent-text: #0d1020;
+    --accent-hover: #a9c4ff;
+    --error-bg: #3a1e21;
+    --error-text: #ff9d97;
+    --ok-bg: #1a3328;
+    --ok-text: #6fd3a0;
+    --warn-bg: #3a2e12;
+    --warn-text: #f5cf7a;
+    --risk-bg: #3a261b;
+    --risk-text: #ffa877;
+    --do-bg: #1e2a45;
+    --faint: #6b727d;
+    --line: #2a2f37;
+    --focus: #a9c4ff;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #14161b;
+  --surface: #1f232a;
+  --text: #e8eaed;
+  --muted: #a3aab5;
+  --border: #363c46;
+  --accent: #6b9bff;
+  --accent-text: #0d1020;
+  --accent-hover: #a9c4ff;
+  --error-bg: #3a1e21;
+  --error-text: #ff9d97;
+  --ok-bg: #1a3328;
+  --ok-text: #6fd3a0;
+  --warn-bg: #3a2e12;
+  --warn-text: #f5cf7a;
+  --risk-bg: #3a261b;
+  --risk-text: #ffa877;
+  --do-bg: #1e2a45;
+  --faint: #6b727d;
+  --line: #2a2f37;
+  --focus: #a9c4ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+a {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.brand {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.muted,
+.placeholder,
+.lead {
+  color: var(--muted);
+}
+
+.error {
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius);
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+/* Buttons and button-styled links */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: var(--accent);
+}
+
+.button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.button.primary:hover {
+  background: var(--accent-hover);
+}
+
+/* Signed-out, no-access and picker: one centred card */
+
+.center {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 1.5rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 26rem;
+  padding: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.card .brand {
+  font-size: 1.5rem;
+}
+
+/* Signed-in shell */
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-right: auto;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.person {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  font-size: 0.875rem;
+}
+
+.person .name {
+  font-weight: 600;
+}
+
+.person .email {
+  color: var(--muted);
+}
+
+.content {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+/* Read by screen readers, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Section nav under the header */
+
+/* On a phone the tabs scroll sideways, the page never does. */
+.sections {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  padding: 0 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.sections a {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.sections a:hover {
+  color: var(--text);
+}
+
+.sections a[aria-current='page'] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+/* Members page */
+
+.members {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.members table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.members th,
+.members td {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.members tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.members th {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.members td.name {
+  font-weight: 600;
+}
+
+.role {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+}
+
+.role.admin {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.members td .button {
+  min-height: 2.25rem;
+  padding: 0.25rem 0.75rem;
+  white-space: nowrap;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.invite {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.commands {
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.invite h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.fields .field {
+  display: flex;
+  flex: 1 1 14rem;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.fields .field label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.fields .field input {
+  min-height: 2.5rem;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+/* One pill per bot or meeting state. Each differs in text and in border style, not
+   only in colour. */
+
+.pill {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pill.idle {
+  color: var(--muted);
+}
+
+.pill.claimed {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pill.attending {
+  border-color: var(--ok-text);
+  background: var(--ok-bg);
+  color: var(--ok-text);
+}
+
+.pill.stale {
+  border-style: dashed;
+  border-color: var(--warn-text);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.pill.error {
+  border-color: var(--error-text);
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.pill.requested {
+  border-style: dashed;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pill.refused {
+  border-color: var(--error-text);
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.send {
+  margin-bottom: 1.5rem;
+}
+
+/* Recent meetings: one bordered list. */
+
+.meetings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.meetings li {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.meetings li:last-child {
+  border-bottom: 0;
+}
+
+.meeting-title {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.meetings .meta {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* The dictionary, at the foot of Settings, Cards */
+
+.corrections {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Words, Corrections and the save row, spaced as the block's own rows are. */
+.corrections > fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.corrections h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.corrections ul {
+  margin: 0;
+}
+
+.notice {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.notice.warn {
+  border-color: var(--warn-text);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.notice.ok {
+  border-color: var(--ok-text);
+  background: var(--ok-bg);
+  color: var(--ok-text);
+}
+
+.notice.ok a {
+  color: inherit;
+}
+
+.error p + p,
+.error p + ul {
+  margin-top: 0.5rem;
+}
+
+.dictionary-part {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.row input[type='text'],
+.row select {
+  flex: 1 1 10rem;
+  min-height: 2.5rem;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.row .check {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.row .button.remove {
+  min-height: 2.25rem;
+  padding: 0.25rem 0.75rem;
+}
+
+.save-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Settings page: five places beside one pane, and one save bar under it. */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 11rem 1fr;
+  gap: 1.5rem;
+  align-items: start;
+  font-size: 0.875rem;
+}
+
+.subnav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.subnav button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.subnav button[aria-current='page'] {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.subnav .dot {
+  margin-left: auto;
+}
+
+.dot {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.dot.ok {
+  background: var(--ok-text);
+}
+
+.settings-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.settings-pane > h3 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+/* A group inside a place: a bordered box, its rows ruled apart. */
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.small {
+  font-size: 0.75rem;
+}
+
+.block .button {
+  min-height: 2.25rem;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.button.quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--accent);
+}
+
+.secret-row .button.remove {
+  border-color: transparent;
+  background: none;
+  color: var(--error-text);
+}
+
+.block input[type='text'],
+.block input[type='password'] {
+  background: var(--surface);
+}
+
+.settings-section > p {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.block select {
+  align-self: flex-start;
+  min-height: 2.25rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+/* One line per setting: the label (and any note) on the left, the control on the right. */
+.setting.inline {
+  flex-flow: row wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  min-height: 2.5rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.setting.inline:last-child {
+  border-bottom: 0;
+}
+
+.setting.inline + .setting.inline {
+  margin-top: -0.5rem;
+}
+
+.setting.inline .l {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.setting.inline .l small {
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.setting.inline > .error {
+  flex-basis: 100%;
+}
+
+/* An on/off setting: a checkbox drawn as a 36x22 track with a 16px knob. */
+.switch {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 22px;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switch i {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background 0.18s;
+  pointer-events: none;
+}
+
+.switch i::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 25%);
+  content: '';
+  transition: transform 0.18s;
+}
+
+.switch input:checked + i {
+  background: var(--accent);
+}
+
+.switch input:checked + i::after {
+  transform: translateX(14px);
+}
+
+.switch input:disabled {
+  cursor: not-allowed;
+}
+
+.switch input:disabled + i {
+  opacity: 0.6;
+}
+
+.switch input:focus-visible + i {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.eyebrow {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.readonly p + p {
+  margin-top: 0.5rem;
+}
+
+/* A Zoom app's fields, opened under its row. */
+.zoom-app > .secret {
+  margin-left: 1rem;
+}
+
+.zoom-app > .secret:last-child {
+  border-bottom: 0;
+}
+
+/* How to set the Zoom apps up: closed until asked for. */
+details.howto > summary {
+  display: flex;
+  align-items: center;
+  min-height: 2.25rem;
+  color: var(--accent);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+details.howto > p {
+  margin: 0.25rem 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.field input {
+  min-height: 2.25rem;
+  width: 14rem;
+  max-width: 100%;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.field input[inputmode='numeric'] {
+  width: 5rem;
+}
+
+.unit {
+  color: var(--muted);
+}
+
+/* Two choices that are one setting: a segmented pair. */
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.seg button {
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.seg button[aria-pressed='true'] {
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+  color: var(--text);
+}
+
+.choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Automatic joining's state: peach while it waits for setup, green once ready. */
+.setup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.5rem;
+  padding: 0.625rem 1rem 0.625rem 0.75rem;
+  border-radius: 10px;
+  background: var(--ok-bg);
+  transition: background-color 0.4s;
+}
+
+.setup.warn {
+  background: var(--risk-bg);
+}
+
+.setup p {
+  flex: 1;
+}
+
+.setup .link {
+  align-self: center;
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+
+/* Each check on its own line: a dot, its name, and on the right what is missing. */
+.checks {
+  margin: -0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checks li {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 2.25rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.checks small {
+  max-width: 55%;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  text-align: right;
+}
+
+/* Each check that now passes turns green in turn, with a small breath. */
+.dot.lit {
+  animation: light 0.5s ease-out backwards;
+}
+
+@keyframes light {
+  from {
+    background: var(--faint);
+  }
+
+  50% {
+    transform: scale(1.8);
+  }
+}
+
+.other-problems {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* A group of keys or credentials inside a place. */
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-section h3,
+.settings-section h4 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* A changed row's thin blue edge. */
+.setting {
+  box-shadow: inset 0 0 0 transparent;
+  transition: box-shadow 0.2s;
+}
+
+.setting.changed {
+  margin-left: -0.75rem;
+  padding-left: calc(0.75rem - 3px);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* One save bar: it rises when something changed, and leaves once saved or undone. */
+.savebar {
+  position: sticky;
+  bottom: 1rem;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.625rem 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 15%);
+  opacity: 0;
+  transform: translateY(140%);
+  visibility: hidden;
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.2s,
+    visibility 0s linear 0.28s;
+}
+
+.savebar.show {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.savebar .l {
+  flex: 1;
+}
+
+/* The logo's orange arc draws round a small lens, then "Saved" fades. */
+.lensmark {
+  width: 18px;
+  height: 18px;
+  vertical-align: -4px;
+}
+
+.lensmark circle {
+  fill: var(--lens);
+}
+
+/* On a dark surface the lens takes the text's ink, so it shows. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .lensmark circle {
+    fill: var(--text);
+  }
+}
+
+:root[data-theme='dark'] .lensmark circle {
+  fill: var(--text);
+}
+
+.lensmark .arc {
+  fill: none;
+  stroke: var(--arc);
+  stroke-width: 3;
+  stroke-dasharray: 60;
+  stroke-dashoffset: 60;
+}
+
+.saved.play .arc {
+  animation: draw 0.55s ease-out forwards;
+}
+
+.savedword {
+  margin-left: 0.25rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  opacity: 0;
+}
+
+.saved.play .savedword {
+  animation: fade-in-out 1.8s ease-out forwards;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes fade-in-out {
+  20%,
+  75% {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 720px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .subnav {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .subnav button {
+    white-space: nowrap;
+  }
+}
+
+/* Reduce Motion: nothing travels. The bar and the edges fade, the arc is already whole. */
+@media (prefers-reduced-motion: reduce) {
+  .savebar {
+    transform: none;
+  }
+
+  .saved.play .arc {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .digits.roll span {
+    animation-name: fade-in;
+    animation-delay: 0s !important;
+  }
+
+  .dot.breathe {
+    animation: none;
+  }
+
+  .dot.lit {
+    animation: none;
+  }
+
+  .tile img.fresh {
+    animation: none;
+  }
+
+  .mini > div {
+    transition: opacity 0.35s;
+  }
+
+  /* A changed row's edge keeps its width and only fades. */
+  .setting {
+    box-shadow: inset 3px 0 0 transparent;
+  }
+
+  .rows input.fresh {
+    animation: none;
+    background-size: 100% 2px;
+  }
+}
+
+.setting {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* The picture and the name in one 16:9 tile, as a meeting shows them. */
+.presence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.25rem 0 0.5rem;
+}
+
+.presence-fields {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 14rem;
+}
+
+.presence .setting.inline {
+  margin-top: 0;
+  border-bottom: 0;
+}
+
+.presence .field input {
+  width: 10rem;
+}
+
+.presence-picture .actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* With nothing uploaded there is nothing to go back to. */
+.presence-picture .button.quiet:disabled {
+  visibility: hidden;
+}
+
+.tile {
+  position: relative;
+  width: 14rem;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--lens);
+  aspect-ratio: 16 / 9;
+}
+
+.tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.tile img.fresh {
+  animation: fade-in 0.3s ease-out;
+}
+
+.tile .lbl {
+  position: absolute;
+  bottom: 5px;
+  left: 6px;
+  max-width: calc(100% - 12px);
+  overflow: hidden;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The file input hidden behind its button. */
+
+.presence-picture label.button:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.secret {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.secret .row input[type='password'] {
+  flex: 1 1 10rem;
+  max-width: none;
+}
+
+.secret small {
+  font-size: 0.75rem;
+}
+
+.secret-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.secret-row .l {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 12rem;
+}
+
+.secret small {
+  color: var(--muted);
+}
+
+/* A saved secret's new last four roll down one by one. */
+.digits {
+  display: inline-flex;
+  gap: 1px;
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.digits span {
+  display: inline-block;
+}
+
+.digits.roll span {
+  animation: roll 0.35s ease-out backwards;
+}
+
+@keyframes roll {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* The example cards fold into each other or split apart as the slider moves. */
+.quote {
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--line);
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+.mini {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mini > div {
+  max-height: 8rem;
+  overflow: hidden;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: var(--do-bg);
+  font-size: 0.75rem;
+  transition:
+    max-height 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    padding 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    margin 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.35s;
+}
+
+.mini > div.risk {
+  background: var(--risk-bg);
+}
+
+.mini b {
+  margin-right: 6px;
+  color: var(--accent);
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mini > .risk b {
+  color: var(--risk-text);
+}
+
+.mini small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.mini > div.gone {
+  max-height: 0;
+  margin-top: -6px;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+}
+
+button.link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* A word the dictionary just saved gets a brief underline in the arc's orange. */
+.rows input.fresh {
+  background-image: linear-gradient(var(--arc), var(--arc));
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0 2px;
+  animation: underline 0.5s ease-out forwards;
+}
+
+@keyframes underline {
+  to {
+    background-size: 100% 2px;
+  }
+}
+
+/* A dot breathes once as it turns green. */
+.dot.breathe {
+  animation: breathe 0.5s ease-out 1;
+}
+
+@keyframes breathe {
+  50% {
+    transform: scale(1.8);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.setting > label,
+.setting .l > label,
+.setting-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.setting .muted {
+  font-size: 0.875rem;
+}
+
+.setting > input[type='text'],
+.setting select,
+.secret input[type='password'] {
+  min-height: 2.5rem;
+  max-width: min(24rem, 100%);
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+/* A slider over named steps, every step's name under it. */
+.steps-track {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.steps-track input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.step-ends {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.step-ends span:nth-child(2) {
+  text-align: center;
+}
+
+.step-ends span:last-child {
+  text-align: right;
+}
+
+.setting input:disabled,
+.setting select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* The chosen swatch: a ring, not only a colour. */
+
+/* A note under a setting, and why a control is off. */
+
+.setting .note {
+  align-self: flex-start;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.setting .unavailable {
+  color: var(--warn-text);
+  font-size: 0.875rem;
+}
+
+.secret .button {
+  min-height: 2.25rem;
+  padding: 0.25rem 0.75rem;
+}
+
+/* The onboarding page's open steps, on the Overview while any is open. */
+.finish-setup-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.finish-setup-list li {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.finish-setup-list p {
+  margin: 0.25rem 0;
+}
+
+/* Plugins: one row per plugin, its switch on the right. */
+.plugins {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.plugins .sub {
+  margin: 0;
+}
+
+.plugin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.plugin .name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.plugin .switch {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+}
+
+.plugin .error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.plugin p {
+  grid-column: 1;
+  margin: 0;
+}
+
+.plugin .help {
+  color: var(--warn-text);
+  font-size: 0.8125rem;
+}
+
+
+/* A plugin's own setup card, under it while it is on. */
+.plugin .setup {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin-top: 0.5rem;
+}
+
+/* The check before turning off a plugin that holds data: inline, never a dialog. */
+.plugin .confirm {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.plugin .confirm span {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+/* The Google sign-in card: label and value rows, then the domains. */
+.google-signin .pill {
+  align-self: flex-start;
+  margin: 0;
+}
+
+.pill.warn {
+  border-color: var(--warn-text);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.google-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  padding: 0.375rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.google-row .k {
+  flex: 0 0 11rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.google-row .v {
+  display: flex;
+  flex: 1 1 14rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+  font-size: 0.8125rem;
+}
+
+/* A client id is one long token: it wraps anywhere rather than widen the page. */
+.google-row code {
+  overflow-wrap: anywhere;
+}
+
+.google-domains {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-top: 0.5rem;
+}
+
+.google-domains label {
+  font-weight: 500;
+}
+
+.google-domains input {
+  min-height: 2.5rem;
+  max-width: min(24rem, 100%);
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.google-domains p {
+  margin: 0;
+}
+
+.google-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Overview: one sentence, then what bwat is doing now. */
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.overview > section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.overview h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.overview .send {
+  margin-bottom: 0;
+}
+
+.headline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.headline h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 650;
+}
+
+.headline .state-dot {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--ok-text);
+}
+
+.headline.needs {
+  border-color: var(--risk-text);
+  background: var(--risk-bg);
+}
+
+.headline.needs .state-dot {
+  background: var(--risk-text);
+}
+
+.headline .next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* One line per bot; its ID and version are in the line's tooltip. */
+.bots {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.bots li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.75rem;
+  min-height: 3.25rem;
+  padding: 0.5rem 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.bots li:last-child {
+  border-bottom: 0;
+}
+
+.bots .line {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.bots .line b {
+  font-weight: 600;
+}
+
+.bots .why {
+  display: block;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.bots .tip {
+  border-bottom: 1px dotted var(--faint);
+  cursor: help;
+}
+
+.bots .button,
+.meetings .button {
+  min-height: 2.25rem;
+  padding: 0.25rem 0.75rem;
+}
+
+.confirming {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Recent meetings: a reason in words, its fix quieter. */
+.meetings .head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+}
+
+.meetings .why {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.why .fix {
+  color: var(--muted);
+}
+
+.meetings a.board {
+  font-size: 0.875rem;
+}
+
+.recent-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Elsewhere than the Overview: a small pill instead of the Finish setting up block. */
+.setup-pill {
+  margin-bottom: 1rem;
+  text-decoration: none;
+}
+
+.setup-pill:hover {
+  text-decoration: underline;
+}
+
+/* A provider bwat needs, and a check mark after a passed check. */
+.req {
+  margin-left: 0.375rem;
+  padding: 0 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  vertical-align: 1px;
+}
+
+.tick {
+  margin-left: 0.25rem;
+  color: var(--ok-text);
+  font-weight: 700;
+}
+
+.google-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.google-line .tick {
+  margin: 0;
+}
+
+.button.change-model {
+  align-self: flex-start;
+}
+
+.block .row .button {
+  min-height: 2.25rem;
+}

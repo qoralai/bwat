@@ -1,0 +1,124 @@
+/* Live meeting desk: the live indicator and the Zoom app surface. */
+
+/* Zoom app surface: a narrow side panel inside a meeting. Only the cards and
+   the card being read -- no side column, no headline copy, no navigation. */
+body.surface-zoom .meeting-nav,
+body.surface-zoom .page-intro,
+body.surface-zoom .app-header nav,
+body.surface-zoom .list-end{display:none}
+body.surface-zoom .app-shell{display:block;min-height:0}
+body.surface-zoom .app-header{padding:8px 12px;gap:8px}
+body.surface-zoom .brand img{width:24px;height:24px}
+body.surface-zoom main#main{padding:10px 12px;max-width:none}
+body.surface-zoom .meeting-strip{margin-bottom:8px}
+body.surface-zoom .content-grid{display:block}
+body.surface-zoom .desk-columns{display:flex;flex-direction:column;gap:12px}
+/* Fit the Zoom panel's width: nothing wider than the panel. */
+body.surface-zoom{overflow-x:hidden}
+body.surface-zoom #viewer-caption{display:none !important}
+/* Its one filter row (zoomtabs.js) stands in for the toolbar. */
+body.surface-zoom .toolbar{display:none}
+/* The Zoom panel drops the counts line above the columns, which the tabs already say
+   (9/29). It stays for screen readers and as the focus target navigation lands on, so it is
+   visually hidden rather than removed. */
+body.surface-zoom .section-head{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;margin:0;padding:0}
+body.surface-zoom .desk-column,body.surface-zoom .card{min-width:0;max-width:100%}
+body.surface-zoom .card h3{overflow-wrap:anywhere}
+/* This meeting / All meetings, above the meeting picker. */
+.zoom-scope{margin:0 0 10px}
+/* On the web the switch sizes to its buttons, like My to-dos / Everything;
+   phones and the Zoom panel keep the full-width segmented control. */
+@media(min-width:701px){body:not(.surface-zoom) .zoom-scope{width:fit-content}}
+/* No name picked: the picker says so. Token colour, so dark mode follows. */
+.session-help.warn{color:var(--red)}
+/* Person colours: owner badge and person chips. White text on
+   a person's colour is a token so the dark generator never flips it. */
+:root{--on-person:white}
+.avatar.colored{background:var(--owner);color:var(--on-person)}
+/* Ownership remains in the named avatar; all card edges share hover/selection. */
+/* "Send to Claude" session overlay (2026-09-23). */
+.send-dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:16px;width:min(440px,calc(100vw - 32px));max-height:80vh;overflow:auto}
+.send-dialog::backdrop{background:rgb(0 0 0 / 45%)}
+.send-dialog-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:4px}
+.send-dialog-head h2{font-size:18px;margin:0}
+.send-group{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.send-group-title{font-size:12px;color:var(--muted);margin:6px 0 0}
+.send-session{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);text-align:left;cursor:pointer}
+/* a session row and its Make default / Clear default control, side by side. */
+.send-session-row{display:flex;align-items:center;gap:8px}.send-session-row .send-session{flex:1;min-width:0}.send-default-ctl{white-space:nowrap;font-size:12px}.send-default-off{margin:0 0 8px}
+/* The picker (the owner's picks, 10/22): one list, each row a session's name alone. Its note
+   and pin buttons sit beside the row's button and show on hover or keyboard focus (always on
+   a touch screen); the default's pin always, filled. */
+.send-list{gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--paper)}
+.send-list>.send-session-row+.send-session-row,.send-list>.send-row-note+.send-session-row{border-top:1px solid var(--line)}
+.send-list .send-session-row{gap:2px;min-height:44px;padding-right:6px}
+.send-list .send-session{justify-content:flex-start;min-height:44px;padding:0 0 0 14px;border:0;border-radius:0;background:transparent}
+.send-dot{width:8px;height:8px;border-radius:50%;flex:none;background:#1f9d55}.send-dot.old{background:var(--muted)}
+.send-list .send-session-name{min-width:0;flex:0 1 auto;overflow:hidden;white-space:nowrap;overflow-wrap:normal}
+.send-name-text{display:inline-block;transition:transform .2s ease-out}
+.send-machine{flex:none;font-size:12px;color:var(--muted);white-space:nowrap}
+.send-list .send-session-meta{margin-left:auto}.send-list .send-session-meta:empty{display:none}
+.send-pin,.send-note-btn{display:grid;place-items:center;flex:none;width:30px;height:30px;min-height:30px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--muted);opacity:0;cursor:pointer}
+.send-pin svg,.send-note-btn svg{width:15px;height:15px}.send-pin svg{fill:none}.send-pin.on svg{fill:currentColor}
+.send-session-row:is(:hover,:focus-within) :is(.send-pin,.send-note-btn),.send-pin.on,.send-note-btn[aria-expanded=true]{opacity:1}
+@media (hover:none){.send-pin,.send-note-btn{opacity:1}}
+.send-heading{margin:14px 0 0;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.send-heading+.send-group{margin-top:6px}
+.send-row-note{display:grid;gap:8px;padding:8px 10px 12px 14px}
+.send-row-note textarea{width:100%;resize:vertical}
+.send-note-go{justify-self:end}
+.send-find{margin-top:8px}
+/* A name too long for its row fades at the edge; on hover or focus, after 0.4 s, it slides
+   to its end at about 40 px a second (study.js measures --dx and --dur), and eases back. */
+.send-session-name.over{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 32px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 32px),transparent)}
+.send-session-row:is(:hover,:focus-within) .send-session-name.over{-webkit-mask-image:linear-gradient(to right,transparent,#000 24px);mask-image:linear-gradient(to right,transparent,#000 24px)}
+.send-session-row:is(:hover,:focus-within) .send-session-name.over .send-name-text{transform:translateX(var(--dx));transition:transform var(--dur) linear .4s}
+/* A new default: its pin drops in and its row rises to the top. A send: the dot turns to a
+   check, then the dialog fades out. */
+.send-pin.drop svg{animation:send-drop .22s cubic-bezier(.3,1.6,.6,1)}
+@keyframes send-drop{from{transform:translateY(-6px) scale(.8)}to{transform:none}}
+.send-session-row.rise{position:relative;z-index:1;animation:send-rise .26s ease-out}
+@keyframes send-rise{from{transform:translateY(var(--from,30px))}to{transform:none}}
+.send-session-row.sent .send-dot{display:grid;place-items:center;width:14px;height:14px;background:var(--accent);transition:width .15s,height .15s,background-color .15s}
+.send-session-row.sent .send-dot::after{content:"";width:6px;height:3px;border:solid #fff;border-width:0 0 2px 2px;transform:rotate(-45deg) translate(1px,-1px)}
+.send-dialog.sending{pointer-events:none}
+.send-dialog.closing{animation:send-shut .16s ease-in forwards}
+@keyframes send-shut{to{opacity:0;transform:scale(.98)}}
+/* Reduce Motion: nothing slides; on hover or focus a long name wraps and its row grows. */
+@media (prefers-reduced-motion:reduce){
+  .send-session-row:is(:hover,:focus-within) .send-session-name.over{white-space:normal;overflow-wrap:anywhere;-webkit-mask-image:none;mask-image:none}
+  .send-session-row:is(:hover,:focus-within) .send-session-name.over .send-name-text{display:inline;transform:none}
+  .send-name-text,.send-session-row.sent .send-dot{transition:none}
+  .send-pin.drop svg,.send-session-row.rise,.send-dialog.closing{animation:none}}
+.send-session:hover:not(:disabled),.send-session:focus-visible{border-color:var(--orange)}
+.send-session:disabled{opacity:.55;cursor:not-allowed}
+.send-session-name{font-weight:600;overflow-wrap:anywhere}
+.send-session-meta{font-size:12px;color:var(--muted);white-space:nowrap}
+.send-empty{color:var(--muted);font-size:13px;margin:10px 0 0}
+body.surface-zoom .send-dialog{width:calc(100vw - 16px);max-width:none;padding:12px}
+/* Reader actions: three buttons in one row, each opening an overlay (2026-09-23). */
+.action-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+.action-button{font-size:13px}
+/* Send to Claude on each card in the list. */
+.card-foot{flex-wrap:wrap}
+.card-actions{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.card-action{font-size:12px;padding:6px 12px}
+.action-button[aria-disabled=true]{opacity:.5;cursor:not-allowed}
+body.surface-zoom .action-button{flex:1 1 auto}
+.person-option .send-session-name{display:inline-flex;align-items:center;gap:8px}
+.person-dot{width:10px;height:10px;border-radius:50%;background:var(--chip,var(--muted));flex:none}
+.person-option[aria-current=true]{opacity:.6}
+/* A card open where the reader replaces the list (Zoom, <=1100px):
+   the list's controls act on nothing visible, so they go; the reader's top
+   bar ("<- Back to cards" + the meeting) is the one way back. */
+body.reader-replaces :is(.page-intro,.meeting-strip,.toolbar,.cards-pane,#zoom-scope,#zoom-filter,#week-pick,.meeting-nav,.list-end){display:none !important}
+body.reader-replaces .reader{position:static;width:100%;max-width:none;box-shadow:none;overflow:visible}
+body.reader-replaces main#main{padding-right:0}
+.reader-top .reader-meeting{font-size:12px;color:var(--muted);margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Shared scope track and consistent theme/picker affordances. */
+.segmented{background:var(--paper);border:1px solid var(--line);padding:3px;gap:2px;border-radius:8px}
+.segmented button{border-color:transparent;border-radius:5px;font-weight:500}
+.segmented button[aria-pressed=true]{background:var(--surface);border-color:var(--line);box-shadow:none;color:var(--ink)}
+/* The name picker sits beside the theme toggle; the view tabs stay centred between the brand and that pair. */
+.app-header nav{margin-inline:auto}

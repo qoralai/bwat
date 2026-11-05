@@ -1,0 +1,67 @@
+/* The full board as a to-do list. One row of header,
+   one row of controls, then the cards; the meetings sidebar behind the ☰. */
+.nav-toggle{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-width:44px;padding:0;flex:none;background:transparent;border-color:transparent}
+.nav-toggle svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+body.surface-zoom .nav-toggle{display:none}
+body:not(.surface-zoom):not(.nav-open) .meeting-nav{display:none}
+body:not(.surface-zoom):not(.nav-open) .app-shell{grid-template-columns:minmax(0,1fr)}
+/* The filters column (ui/sidebar.js): as wide as it was dragged, and from 701 to 960px wide it
+   pushes the cards aside too (it used to vanish there). Its edge is the drag handle; it never
+   takes more than 45% of the window, so a width kept from a wider one leaves the cards room. */
+body.nav-open:not(.surface-zoom) .app-shell{grid-template-columns:min(var(--nav-w,224px),45vw) minmax(0,1fr)}
+@media(max-width:1150px){body.nav-open:not(.surface-zoom) .app-shell{grid-template-columns:min(var(--nav-w,188px),45vw) minmax(0,1fr)}}
+@media(min-width:701px) and (max-width:960px){body.nav-open:not(.surface-zoom) .app-shell{display:grid}body.nav-open:not(.surface-zoom) .meeting-nav{display:block}}
+.meeting-nav{position:relative;min-width:0}
+.meeting-nav.no-meetings .nav-meetings,.meeting-nav.configuring :is(.nav-meetings,#plugin-pages){display:none}
+.nav-grip{position:absolute;top:0;bottom:0;right:-5px;z-index:2;width:10px;cursor:col-resize;touch-action:none}
+.nav-grip:hover,.nav-grip:focus-visible{outline:0;background:linear-gradient(var(--muted),var(--muted)) center/2px 100% no-repeat}
+.nav-top{display:flex;align-items:center;gap:2px;margin:-12px 0 16px}
+.nav-title{flex:1;font-weight:700}
+.nav-top-button{min-height:32px;padding:0 10px;border:0;border-radius:8px;background:transparent;font-size:12.5px;font-weight:600;cursor:pointer}
+.nav-pin{display:inline-grid;place-items:center;width:32px;padding:0}
+.nav-pin svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
+.nav-pin[aria-pressed=true] svg{fill:currentColor}
+.filter-groups{display:grid;gap:18px;margin-top:20px}
+.filter-groups:empty{display:none}
+.filter-group{display:grid;gap:1px;margin:0 -5px}
+.filter-head{display:flex;align-items:baseline;gap:8px;margin:0 5px 4px}
+.filter-head .eyebrow{flex:1;margin:0;text-transform:uppercase}
+.filter-head .filter-page{font-size:12px;font-weight:500;text-decoration:none}
+/* A row (the filters column mock-up): its mark, its name on up to three lines, its card count. */
+.filter-group a[data-filter]{display:flex;align-items:flex-start;gap:8px;min-height:32px;padding:7px 10px;border-radius:8px;font-size:13px;line-height:1.35;text-decoration:none}
+.fi-mark{display:grid;place-items:center;flex:none;width:16px;height:16px;margin-top:1px;border-radius:4px;font-size:9.5px;font-weight:800}
+.fi-mark:empty{display:none}
+.filter-meetings .fi-mark{display:block;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2.5' y='3.5' width='11' height='10' rx='2' fill='none' stroke='%23000' stroke-width='1.4'/%3E%3Cpath d='M2.5 7h11M5.5 2v3M10.5 2v3' stroke='%23000' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") center/12px no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2.5' y='3.5' width='11' height='10' rx='2' fill='none' stroke='%23000' stroke-width='1.4'/%3E%3Cpath d='M2.5 7h11M5.5 2v3M10.5 2v3' stroke='%23000' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") center/12px no-repeat}
+.filter-group[data-group=people] .fi-mark{width:18px;height:18px;border-radius:50%;font-size:9px;font-weight:700}
+.fi-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;min-width:0;overflow-wrap:anywhere}
+.filter-group a[data-filter] b{margin-left:auto;font-size:11.5px;font-weight:500;font-variant-numeric:tabular-nums}
+.filter-group a.zero :is(.fi-mark,b){opacity:.45}
+.filter-group .filter-more{justify-self:start;padding:4px 10px;font-size:12.5px;font-weight:600;text-decoration:none}
+.filter-group .muted{margin:0 5px}
+/* Meetings: the newest four in their group; More meetings shows the board's whole list instead
+   (the week picker, the days and every meeting), under the group's own heading. */
+.filter-meetings{margin-top:0}
+.meeting-nav:not(.all-meetings) .nav-meetings,.nav-meetings>.eyebrow{display:none}
+.meeting-nav.all-meetings .nav-meetings{margin-top:8px}
+.filter-config{display:grid;gap:4px}
+.filter-config .eyebrow{margin:0 0 4px;text-transform:uppercase}
+.filter-config-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;padding:8px 6px;border-radius:8px;cursor:pointer}
+.filter-config-row input{grid-area:1/1;width:16px;height:16px;min-height:0;margin:2px 0 0;padding:0}
+.filter-config-row span{grid-area:1/2}
+.filter-config-plugins{justify-self:start;margin-top:6px;padding:6px;font-size:13px;font-weight:600}
+.nav-toggle{position:relative}
+.nav-toggle.filtered::after{content:"";position:absolute;top:10px;right:9px;width:7px;height:7px;border-radius:50%;background:currentColor}
+body:not(.surface-zoom) .app-header{justify-content:flex-start}
+body:not(.surface-zoom) .app-header .zoom-scope{margin:0 0 0 12px;width:fit-content}
+body:not(.surface-zoom) .app-header .viewer-label{margin-left:auto}
+body:not(.surface-zoom) .toolbar{flex-wrap:wrap;justify-content:flex-start;gap:12px}
+body:not(.surface-zoom) .toolbar .find-disclosure{margin-left:auto}
+body:not(.surface-zoom) .section-head{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;margin:0;padding:0}
+@media(max-width:900px){
+  body:not(.surface-zoom) .app-header{flex-wrap:wrap}
+  body:not(.surface-zoom) .app-header .zoom-scope{order:5;width:100%;margin:4px 0 0}
+}
+@media(max-width:700px){
+  body.nav-open:not(.surface-zoom) .meeting-nav{display:block;border-right:0;border-bottom:1px solid var(--line)}
+  .nav-grip{display:none}
+}

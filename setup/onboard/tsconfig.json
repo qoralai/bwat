@@ -1,0 +1,19 @@
+{
+  "//": "Type-check only: Node runs these files by stripping types. The compiler and @types/node come from backend/ (cd backend && npm ci; npx tsc -p ../setup/onboard).",
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "typeRoots": ["../../backend/node_modules/@types"],
+    "types": ["node"]
+  },
+  "include": ["*.ts", "test/*.ts"]
+}

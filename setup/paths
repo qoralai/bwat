@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Prints a vendor click path from the onboarding master, by name, with the month it
+# was last checked: "PATH (as of October 2026)", or "PATH (not yet checked)".
+#
+#   setup/paths zoom-new-app
+#
+# Reads setup/onboard/paths.tsv, which ./bwat docs generates from
+# docs/onboarding/master.md (the one place a path is written). Plain bash, no Node.
+# Exits 2 for a name the file lacks.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+if [ "$#" -ne 1 ]; then
+  echo "usage: setup/paths <name>" >&2
+  exit 2
+fi
+months=(January February March April May June July August September October November December)
+while IFS=$'\t' read -r name path date; do
+  case $name in '#'*) continue ;; esac
+  [ "$name" = "$1" ] || continue
+  if [[ $date =~ ^([0-9]{4})-(0[1-9]|1[0-2])$ ]]; then
+    printf '%s (as of %s %s)\n' "$path" "${months[10#${BASH_REMATCH[2]} - 1]}" "${BASH_REMATCH[1]}"
+  else
+    printf '%s (not yet checked)\n' "$path"
+  fi
+  exit 0
+done < setup/onboard/paths.tsv
+echo "setup/paths: no click path named $1 in setup/onboard/paths.tsv" >&2
+exit 2

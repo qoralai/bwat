@@ -1,0 +1,23 @@
+# Layered on setup/compose.yml when BWAT_TLS=caddy: the edge serves the install's
+# address over TLS itself. Caddy gets and renews the certificate and keeps it in
+# caddy_data, so a re-run never asks again. With BWAT_TLS=external (local, or a load
+# balancer or a proxy) this file is left out and the edge stays plain HTTP on
+# 127.0.0.1:8080.
+services:
+  edge:
+    environment:
+      BWAT_EDGE_ADDRESS: ${BWAT_PUBLIC_HOST:?run ./bwat setup}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      default:
+        # Other services reach the public address on the compose network.
+        aliases: ["${BWAT_PUBLIC_HOST}"]
+
+volumes:
+  caddy_data:
+  caddy_config:

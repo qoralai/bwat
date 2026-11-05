@@ -1,0 +1,34 @@
+# The end-to-end slice, layered on docker-compose.yml and docker-compose.bot.yml:
+# scripts/smoke-slice.sh brings it up. One stand-in (scripts/slice-stub.py) answers as the
+# bot's transcription host and as the card writer's model (the backend serves the card service
+# its address), so no audio or transcript leaves the compose network. Local stacks only.
+services:
+  slice-stub:
+    image: python:3.12-alpine
+    command: ["python", "/stub.py"]
+    volumes:
+      - ./scripts/slice-stub.py:/stub.py:ro
+    environment:
+      BWAT_DEV_PERSON_TOKEN: ${BWAT_DEV_PERSON_TOKEN:?set BWAT_DEV_PERSON_TOKEN in .env}
+    networks:
+      default:
+        aliases: [asr.slice.test, model.slice.test]
+    read_only: true
+
+  # The card writer's model, served to the card service by the backend.
+  backend:
+    environment:
+      BWAT_CARDS_MODEL_URL: http://model.slice.test/v1
+      # Any value: the stub takes no key, but the writer is served one.
+      OPENROUTER_API_KEY: slice-stub-key
+
+  bot:
+    environment:
+      BWAT_ASR_URL: http://asr.slice.test/v1/audio/transcriptions
+      BWAT_ASR_TRUSTED_HOSTS: asr.slice.test
+
+  # The first stored poll 10 minutes away: the card can then reach the board in time only
+  # through the card service's dial of the bot's live feed.
+  cards:
+    environment:
+      BWAT_CARDS_POLL_S: "600"

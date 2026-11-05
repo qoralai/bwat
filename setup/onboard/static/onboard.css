@@ -1,0 +1,136 @@
+/* The onboarding page's own layout. Colours, type and components come from the board's
+   stylesheets (web/pages/board/ui), linked first; this file uses their tokens only: the
+   soft look's --sf-* palette (soft.css), light and dark by the theme theme.js sets. */
+.onboard{max-width:660px;margin:0 auto;padding:8px 16px 48px}
+.app-header .brand img{width:36px;height:36px}
+.onboard-intro{margin:0 0 16px}
+#status{margin:0;font-size:13px;color:var(--sf-muted)}
+.app-header>.eyebrow{margin-right:auto}
+.onboard-where{padding:4px 12px;border-radius:999px;background:var(--sf-track);color:var(--sf-ink-3);font-size:13px;font-weight:600}
+
+/* Where the person is: three labelled groups of dots, then "Step N of 7". The dots are
+   buttons, so they are scoped past the board's own button rules (study.css). */
+.onboard-progress{display:flex;flex-direction:column;gap:10px;margin:0 0 20px}
+.onboard-groups{display:flex;gap:28px;flex-wrap:wrap}
+.onboard-group{display:flex;flex-direction:column;gap:8px}
+.onboard-group-label{font-size:13px;font-weight:600;color:var(--sf-muted)}
+.onboard-group-current .onboard-group-label{color:var(--sf-accent)}
+.onboard-group-done .onboard-group-label{color:var(--sf-ok)}
+.onboard-dots{display:flex;gap:8px;align-items:center}
+.onboard-progress button.onboard-dot{width:12px;height:12px;min-height:0;padding:0;border:0;border-radius:999px;background:var(--sf-track);box-shadow:none;cursor:pointer}
+.onboard-progress button.onboard-dot:disabled{opacity:1;color:inherit;background:var(--sf-track);cursor:default}
+.onboard-progress button.onboard-dot-done,.onboard-progress button.onboard-dot-done:hover:not(:disabled){background:var(--sf-accent);border:0}
+.onboard-progress button.onboard-dot-done:hover:not(:disabled){box-shadow:0 0 0 4px var(--sf-tint)}
+.onboard-progress button.onboard-dot-current,.onboard-progress button.onboard-dot-current:hover:not(:disabled){background:var(--sf-card);border:0;box-shadow:inset 0 0 0 3px var(--sf-accent),0 0 0 4px var(--sf-tint)}
+.onboard-progress button.onboard-dot:focus-visible{outline:2px solid var(--sf-accent);outline-offset:3px}
+.onboard-counter{margin:0;font-size:13px;color:var(--sf-muted)}
+
+/* The shown step: a borderless card on the soft shadow. */
+.onboard-panel{display:flex;flex-direction:column;gap:6px;margin:0 0 16px;padding:28px 32px 22px;background:var(--sf-card);border:0;border-radius:12px;box-shadow:var(--sf-shadow-card)}
+.onboard-panel-group{margin:0;font-size:13px;font-weight:700;color:var(--sf-accent)}
+.onboard-end .onboard-panel-group{color:var(--sf-ok)}
+.onboard-panel h2{margin:0 0 6px;font-size:24px;font-weight:600;letter-spacing:-.4px;color:var(--sf-title)}
+.onboard-panel h3{margin:14px 0 4px;font-size:15px;font-weight:600;color:var(--sf-title)}
+.onboard-connected{align-self:flex-start;margin:4px 0;padding:8px 12px;border-radius:8px;font-size:14px;font-weight:600;color:var(--sf-ok);background:color-mix(in srgb,var(--sf-ok) 12%,transparent)}
+.onboard-foot{margin:8px 0 0;color:var(--sf-muted)}
+.onboard-step[hidden]{display:none}
+.onboard-part[hidden]{display:none}
+
+/* The guide's text in a panel. */
+.onboard-body{font-size:15px;line-height:1.55;color:var(--sf-ink)}
+.onboard-body p,.onboard-body ul,.onboard-body ol,.onboard-body table,.onboard-body pre,.onboard-body blockquote{margin:10px 0}
+.onboard-body ol{padding-left:22px}
+.onboard-body li+li{margin-top:8px}
+.onboard-body a{color:var(--sf-accent-ink);font-weight:600}
+.onboard-body a:hover{color:var(--sf-accent)}
+.onboard-body pre{background:var(--sf-fill);border:0;border-radius:10px;padding:10px 14px;overflow-x:auto;font:13px/1.5 var(--mono)}
+.onboard-body code{font-family:var(--mono);font-size:.88em;background:var(--sf-fill);border-radius:5px;padding:1px 5px}
+.onboard-body pre code{background:transparent;padding:0}
+.onboard-body table{border-collapse:collapse;width:100%;font-size:14px}
+.onboard-body th,.onboard-body td{border:0;border-bottom:1px solid var(--sf-line);padding:8px 10px;text-align:left;vertical-align:top}
+.onboard-body th{color:var(--sf-muted);font-weight:600;font-size:13px}
+.onboard-body blockquote{border-left:3px solid var(--sf-line);padding-left:12px;color:var(--sf-muted)}
+.bwat-when[hidden],.bwat-flows[hidden],.bwat-os[hidden]{display:none}
+
+/* Fields: a field and its explanation read as one group, set apart from the next. */
+.onboard-field{margin:16px 0 8px}
+.onboard-field .field-label{margin:0 0 6px;font-size:14px;font-weight:600}
+.onboard-field-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.onboard-field-row input,.onboard-secret-box input{flex:1;min-width:220px;min-height:44px;padding:10px 14px;border:0;border-radius:10px;background:var(--sf-fill);color:var(--sf-ink);box-shadow:var(--sf-shadow-field)}
+.onboard-field-row input:focus,.onboard-secret-box input:focus{outline:2px solid var(--sf-accent);outline-offset:1px;background:var(--sf-card)}
+.onboard-body .onboard-field-help{margin:6px 0 0;color:var(--sf-muted);font-size:13px}
+.onboard-field .draft-status{min-height:0;margin:4px 0 0;font-size:13px;color:var(--sf-ok)}
+/* The secret field: the mask is drawn over a password input that always stays empty. */
+.onboard-secret-box{position:relative;flex:1;min-width:220px}
+.onboard-secret-box input{width:100%;color:transparent;caret-color:transparent}
+.onboard-secret-mask{position:absolute;left:15px;top:50%;transform:translateY(-50%);pointer-events:none;font-family:var(--mono);font-size:14px;white-space:nowrap;overflow:hidden;max-width:calc(100% - 30px)}
+/* Setup delight FR-5: a saved secret shows only its last four. */
+.onboard-mask-arrive .onboard-mask-stars{display:inline-block;transform-origin:left center;animation:onboard-stars .35s ease-out both}
+.onboard-mask-arrive .onboard-mask-four{display:inline-block;animation:onboard-four .3s ease-out .2s both}
+@keyframes onboard-stars{from{transform:scaleX(1.6)}to{transform:none}}
+@keyframes onboard-four{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
+
+/* Buttons: 8px corners, one solid blue. */
+.onboard-panel button,.onboard-panel .button{min-height:36px;padding:0 14px;border:1px solid var(--sf-btn-border);border-radius:8px;background:var(--sf-card);color:var(--sf-ink);font-size:13.5px;font-weight:500;box-shadow:none}
+.onboard-panel button:hover:not(:disabled),.onboard-panel .button:hover{border-color:var(--sf-btn-border-hover);background:var(--sf-btn-hover)}
+.onboard-panel button.primary,.onboard-panel .button.primary{min-height:44px;padding:0 20px;border-color:var(--sf-solid);background:var(--sf-solid);color:var(--sf-knob);font-size:15px;font-weight:600}
+.onboard-panel button.primary:hover:not(:disabled),.onboard-panel .button.primary:hover{border-color:var(--sf-solid-hover);background:var(--sf-solid-hover);color:var(--sf-knob)}
+.onboard-panel .button{display:inline-flex;align-items:center;text-decoration:none}
+.onboard-board{align-self:flex-start;margin-top:10px}
+.onboard-connect{display:block;margin:8px 0 4px}
+.text-button{cursor:pointer}
+
+/* What the page folds: a command and its output, and any "More detail" box. */
+.onboard-tech,.bwat-more{margin:8px 0}
+.onboard-panel .bwat-more{margin-top:14px;padding-top:14px;border-top:1px solid var(--sf-line)}
+.onboard-tech>summary,.bwat-more>summary{cursor:pointer;min-height:28px;color:var(--sf-accent-ink);font-size:14px;font-weight:600}
+.onboard-run-bar{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+.onboard-run-status{margin-right:auto;color:var(--sf-ink-3)}
+.onboard-output{max-height:320px;overflow:auto;white-space:pre-wrap;font:12px/1.5 var(--mono);background:var(--sf-fill);border:0;border-radius:10px;padding:10px 12px;margin-top:8px}
+.onboard-check{color:var(--sf-muted)}
+.onboard-check-ok{color:var(--sf-ok);font-weight:600}
+
+/* Shots. */
+.bwat-shot{margin:12px 0;padding:12px;border:1.5px dashed var(--sf-border);border-radius:12px}
+.bwat-shot img{display:block;max-width:100%;height:auto;border:1px solid var(--sf-line);border-radius:7px}
+.onboard-shot-labels{margin:8px 0 0;padding-left:22px}
+.onboard-open{display:inline-block;margin-top:6px;font-weight:600}
+
+/* The assistant's run request, and problem banners. */
+.onboard-allow{margin-bottom:16px}
+.onboard-allow button{margin:8px 8px 0 0}
+.onboard-problem{margin-bottom:16px}
+
+/* The setup server went quiet (setup delight FR-9). */
+.app-header .brand img{transition:filter .4s ease,opacity .4s ease}
+#steps{transition:opacity .4s ease}
+.onboard-offline .app-header .brand img{filter:grayscale(1);opacity:.55}
+.onboard-offline #steps{opacity:.6}
+.onboard-offline #status{color:var(--sf-ink)}
+@media (prefers-reduced-motion:reduce){
+  .app-header .brand img,#steps{transition:none}
+  .onboard-mask-arrive .onboard-mask-stars,.onboard-mask-arrive .onboard-mask-four{animation:none}
+}
+
+/* A local install's sign-in code, shown once (D202): big enough to copy by eye. */
+.onboard-code-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.onboard-code-value{margin:0;padding:8px 12px;border-radius:8px;background:var(--sf-fill);font:600 16px/1.4 ui-monospace,"Cascadia Mono",Consolas,monospace;letter-spacing:.04em;white-space:pre-wrap;word-break:break-all}
+
+/* The Zoom Meeting SDK: its state, and a place to drop the file (QOR-5044). */
+.onboard-sdk{margin:14px 0 4px}
+.onboard-sdk-status{margin:0 0 10px;font-weight:600}
+.onboard-sdk-drop{display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:18px;border:1.5px dashed var(--sf-border);border-radius:12px;color:var(--sf-muted);font-size:14px}
+.onboard-sdk-drop[hidden]{display:none}
+.onboard-sdk-over{border-color:var(--sf-accent);color:var(--sf-ink)}
+.onboard-sdk-drop input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
+.onboard-sdk-drop label.button{cursor:pointer}
+.onboard-sdk progress{width:100%;margin:8px 0}
+.onboard-sdk progress[hidden],.onboard-sdk .onboard-tech[hidden]{display:none}
+
+/* The end: the Zoom settings to check before the first meeting. */
+.onboard-settings{margin-top:6px}
+
+@media (max-width:520px){
+  .onboard-panel{padding:22px 18px 18px}
+  .onboard-groups{gap:18px}
+}

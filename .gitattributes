@@ -1,0 +1,4 @@
+# Check every text file out with LF, whatever core.autocrlf says. The
+# mixed-line-ending hook enforces LF, so a CRLF checkout fails it on the first
+# commit and push; Linux containers also need LF shell scripts.
+* text=auto eol=lf

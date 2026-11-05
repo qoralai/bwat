@@ -1,0 +1,152 @@
+/* Small moments (mock-ups and spec: the planning record, specs/board-delight). Loaded just
+   before soft.css. One-time classes start with once-, which the board's redraw ignores.
+   Orange is bwat's hand (the icon's arc), blue is yours. Each moment is under a second,
+   plays once, and has its end state under Reduce Motion (the block at the bottom). */
+:root[data-theme="light"]{--dl-orange-soft:#f15a3624;--dl-orange-line:#f15a3640}
+:root[data-theme="dark"]{--dl-orange-soft:#ff7a592e;--dl-orange-line:#ff7a5950}
+
+/* The inline lens keeps the old <img>'s size. */
+.brand .brand-lens{width:38px;height:38px;flex:none}
+body.surface-zoom .brand .brand-lens{width:24px;height:24px}
+
+/* 1 · A pass that saved cards turns the lens's orange ring once. */
+.brand-lens .lens-arc{transform-origin:34.42px 34.42px;transform-box:view-box}
+.brand-lens.ring .lens-arc{animation:delight-ring .85s cubic-bezier(.3,.7,.2,1)}
+@keyframes delight-ring{to{transform:rotate(360deg)}}
+
+/* 2 · A new card drops into its place, then washes once in its type's colour (--arrive, in soft.css). */
+.card.is-new{animation:delight-drop .45s cubic-bezier(.2,.8,.25,1),arrive-wash 1.6s ease-out .2s 1}
+@keyframes arrive-wash{25%{background-color:var(--arrive)}}
+@keyframes delight-drop{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+
+/* 3 · The sentence a card came from, highlighted; swept in the first time it opens. */
+.quote-hl{background-image:linear-gradient(var(--sf-fill),var(--sf-fill));color:var(--sf-ink);background-repeat:no-repeat;background-size:100% 100%;border-radius:3px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.quote-hl.sweep{animation:delight-hl .6s .25s cubic-bezier(.4,.1,.3,1) backwards}
+@keyframes delight-hl{from{background-size:0% 100%}}
+
+/* 4 · Closed: the check redraws, the title is struck through, then the card folds away. */
+.card.inking{opacity:.8;transition:opacity .3s}
+.card.inking h3{text-decoration:line-through;text-decoration-thickness:1.5px;text-decoration-color:var(--sf-muted);color:var(--sf-muted);animation:delight-strike .35s .1s ease-out backwards}
+@keyframes delight-strike{from{text-decoration-color:transparent;color:var(--sf-title)}}
+.card.inking .type-icon .ti-g{stroke-dasharray:12;animation:delight-draw .3s ease-out}
+.card.inking,.card.folding:not(.slim-row){pointer-events:none}
+:root[data-theme] .card.folding,:root[data-theme] .card-line.folding{max-height:0;margin-bottom:0;opacity:0;overflow:hidden;transition:max-height .4s cubic-bezier(.4,0,.2,1),margin .4s cubic-bezier(.4,0,.2,1),opacity .25s}
+
+/* 5 · A queued hand-off: a copy of the title slides out of the card; Queued opens. */
+.card h3{position:relative}
+.send-ghost{position:absolute;inset:0;color:var(--sf-accent);pointer-events:none;opacity:0;animation:delight-across .55s cubic-bezier(.3,.6,.3,1)}
+@keyframes delight-across{20%{opacity:.55}100%{opacity:0;transform:translateX(64px)}}
+.badge.queued.arrive{animation:delight-in .3s .25s ease-out backwards}
+@keyframes delight-in{from{opacity:0;transform:translateY(3px)}}
+
+@keyframes delight-draw{from{stroke-dashoffset:12}}
+/* The loading skeleton's rows (soft.css .card-skeleton) breathe while the board loads. */
+@keyframes delight-shimmer{to{opacity:.45}}
+
+/* 7 · A new decision: no pulse; its seal stamps down and one ring ripples out. */
+.card.is-new:has(.type-icon[data-type=decided]){animation:delight-drop .45s cubic-bezier(.2,.8,.25,1)}
+.type-icon.once-seal{border-radius:4px;animation:delight-stamp .32s cubic-bezier(.3,1.6,.5,1),delight-ripple .5s .2s ease-out}
+@keyframes delight-stamp{0%{transform:scale(1.5);opacity:0}60%{opacity:1}100%{transform:scale(1)}}
+@keyframes delight-ripple{from{box-shadow:0 0 0 0 var(--sf-type-decided)}to{box-shadow:0 0 0 6px transparent}}
+
+/* 8 · A card someone else moved: an orange hairline drains for the 20 s it stays.
+   desk.js sets --linger-left on each render, so a re-render picks up where it was. */
+.card.lingering::after{content:"";position:absolute;left:14px;right:14px;bottom:5px;height:2px;border-radius:2px;background:var(--dl-orange-line);transform-origin:left;animation:delight-drain 20s linear forwards;animation-delay:calc(var(--linger-left,20000ms) - 20000ms)}
+@keyframes delight-drain{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+
+/* 9 · The meeting ended while you watched: the Live pill's red dot fades out, once
+   (desk.js then hides the pill). The pill itself is the soft look's. */
+.live-pill.quiet .live-pill-dot{animation:delight-dot-out .6s ease-out forwards}
+@keyframes delight-dot-out{to{opacity:0;transform:scale(.6)}}
+@keyframes delight-dot-fade{to{opacity:0}}
+
+/* Settings redesign moment 9 · The dot goes quiet: once bwat confirms it has left, the Live
+   pill's red dot fades to grey over 0.6 s (zoom-invite.js); the grey itself is soft.css's. */
+.live-pill.fading .live-pill-dot{animation:delight-dot-grey .6s ease-out}
+@keyframes delight-dot-grey{from{background:var(--sf-live)}}
+
+/* 10 · An empty column of a live meeting: a faint lens, drawn once. */
+.column-empty.listening{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.empty-lens circle,.empty-lens path{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;opacity:.7}
+.empty-lens.once-draw .r{stroke-dasharray:57;animation:delight-dash-r .6s ease-out backwards}
+.empty-lens.once-draw .h{stroke-dasharray:9;animation:delight-dash-h .2s .55s ease-out backwards}
+@keyframes delight-dash-r{from{stroke-dashoffset:57}}
+@keyframes delight-dash-h{from{stroke-dashoffset:9}}
+
+/* 11 · A line on the card a change is about (study.js noteCard): ✓ Saved and Kept, or who changed
+   it first, with their initial. It fades in, holds, then folds as a card does (4). On a column's
+   head (dnd.js) it sits under the heading. An error is red and stays, with Try again; one beside
+   the Live pill (meeting-bot.js) says a refused leave. */
+.card-line{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sf-ink-3)}
+.card-line.once-in{animation:delight-in .2s ease-out}
+.card-line.ok{color:var(--sf-ok);font-weight:600}
+.card-line.ok svg{width:12px;height:12px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:12}
+.card-line.ok.once-in svg{animation:delight-draw .3s ease-out backwards}
+.card-line-av{width:16px;height:16px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:8.5px;font-weight:650;color:#fff;background:var(--owner,var(--sf-muted))}
+.card-line.err{color:var(--sf-live-ink)}
+.card-line.err .text-button{flex:none}
+.desk-column>.card-line{margin:-4px 0 10px}
+:root[data-theme] .card-line.folding{min-height:0;margin-top:0}
+.card-rel:has(>.card-line.folding:only-child){padding-bottom:0;transition:padding-bottom .4s cubic-bezier(.4,0,.2,1)}
+
+/* 12 · Your new owner stamps into the card's owner circle (the seal's stamp, 7). */
+.card-owner.once-stamp{animation:delight-stamp .32s cubic-bezier(.3,1.6,.5,1)}
+
+/* 12b · Undo merge asked for from a card that was not loaded: the card opens at it, and it washes once (2). */
+.once-wash{--arrive:var(--dl-orange-soft);animation:arrive-wash 1.6s ease-out 1}
+
+/* 13 · A card you close leaves a slim row, "Done · <title> · Undo" (study.js closeToRow; a refused
+   Undo is its error line, 11). The orange hairline drains for the row's time (8), held while the
+   pointer or focus is on it; then the row folds as a card does (4). Undo brings the card back in
+   its place, dropping in (2). */
+.slim-row{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:6px 14px 7px 16px;font-size:12px;color:var(--sf-ink-3);overflow:hidden}
+.slim-row.once-in{animation:delight-in .2s ease-out}
+.slim-label{flex:none;font-weight:600}
+.slim-row s{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* With an error the title wraps, whole, and the error goes under it, so the title stays readable. */
+.slim-row:has(>.card-line) s{flex-basis:auto;white-space:normal}
+.slim-row>.card-line{flex:none;color:var(--sf-live-ink)}
+.slim-drain{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--dl-orange-line);transform-origin:left;animation:delight-drain var(--slim-ms,8s) linear forwards}
+.slim-row:hover .slim-drain,.slim-row:focus-within .slim-drain{animation-play-state:paused}
+
+/* 14 · A plugin's message whispers under the header (study.js whisper), for the time to read it,
+   held while the pointer or the focus is on it; then it fades. It hangs from the header's bottom
+   edge, out of the flow, on the page's colour over the page's top margin: it never sits over a
+   control and moves nothing. Centred, up to two lines, its whole text in its title; it takes the
+   pointer only while shown. With the header scrolled out of view (the desk's does not stick) it
+   is pinned near the top of the window instead. */
+.app-header>.whisper{position:absolute;top:100%;left:50%;z-index:20;width:max-content;max-width:min(560px,calc(100% - 32px));box-sizing:border-box;padding:2px 12px 4px;border-radius:0 0 10px 10px;background:var(--sf-page);transform:translate(-50%,-4px);opacity:0;transition:opacity .25s,transform .25s;font-size:13px;font-weight:600;line-height:1.3;text-align:center;color:var(--sf-ink);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;pointer-events:none}
+.app-header.on>.whisper{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.app-header>.whisper.pinned{position:fixed;top:8px;border-radius:10px;box-shadow:0 2px 10px rgb(0 0 0 / .14)}
+/* Narrow, under the header is the page itself, so the message stands in for a line of the page's
+   own instead (delight.js whisper's `slot`: the meeting line; in Zoom, the meeting's name): that
+   line's words fade out and the message fades in over them, one line in the same box, its whole
+   text in the line's title. It covers nothing and moves nothing. #whisper stays, unseen, for screen readers. */
+@media (max-width:700px){
+  .app-header.slotted>.whisper{clip-path:inset(50%);width:1px;height:1px;padding:0;white-space:nowrap}
+  [data-whisper]{position:relative;transition:color .25s}
+  [data-whisper]>*{transition:opacity .25s}
+  [data-whisper]::after{content:attr(data-whisper);position:absolute;top:0;left:0;width:max-content;max-width:var(--whisper-room,100%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:var(--sf-ink);opacity:0;transition:opacity .25s;pointer-events:none}
+  .whisper-on[data-whisper]{color:transparent!important}
+  .whisper-on[data-whisper]>*{opacity:0;pointer-events:none}
+  .whisper-on[data-whisper]::after{opacity:1}
+}
+
+/* 15 · The board is down: the lens's arc greys and dashes and the cards dim to 60 % (they still
+   take a click), and the Live pill says Reconnecting… with its dot grey (study.js connection); back,
+   the arc turns once (1). The dash is a fixed grey, as the lens's disc is: 4.4:1 on the disc, and
+   3.3:1 and 4.9:1 on the light and dark headers. */
+.brand-lens.offline .lens-arc{fill:transparent;stroke:#808690;stroke-width:3;stroke-dasharray:4 3}
+body.offline #card-list{opacity:.6;transition:opacity .3s}
+
+@media (prefers-reduced-motion:reduce){
+  .brand-lens.ring .lens-arc,.card.is-new,.card.is-new:has(.type-icon[data-type=decided]),.quote-hl.sweep,
+  .card.inking h3,.card.inking .type-icon .ti-g,.send-ghost,.badge.queued.arrive,
+  .type-icon.once-seal,
+  .empty-lens.once-draw .r,.empty-lens.once-draw .h,.live-pill.fading .live-pill-dot,
+  .card-line.once-in,.card-line.ok.once-in svg,.card-owner.once-stamp,.once-wash,.slim-row.once-in,.app-header>.whisper{animation:none}
+  .send-ghost,.card.lingering::after,.slim-drain{display:none}
+  .live-pill.quiet .live-pill-dot{animation-name:delight-dot-fade;animation-duration:.3s}
+  :root[data-theme] .card.folding,:root[data-theme] .card-line.folding{transition:opacity .3s}
+  .app-header>.whisper,body.offline #card-list{transition:none}
+}

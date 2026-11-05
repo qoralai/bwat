@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Print the path of a Node that can run the onboarding server (./bwat setup --web).
+#
+#   setup/onboard/node
+#
+# A node on PATH at 22.6 or later that strips TypeScript types is used as it is (some
+# distributions build Node without that). Otherwise the Node pinned in node.lock is fetched once from nodejs.org into
+# .bwat/tools/, checked against its SHA-256, and used from there. No sudo, nothing
+# installed outside the clone. BWAT_NODE_DIST and BWAT_NODE_LOCK replace the download
+# address and the lock file, for the tests only.
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+# shellcheck source=node.lock
+. "${BWAT_NODE_LOCK:-setup/onboard/node.lock}"
+dist=${BWAT_NODE_DIST:-https://nodejs.org/dist}
+
+# True when the node at $1 is 22.6 or later and runs TypeScript.
+fits() {
+  local version major minor
+  version=$("$1" -p 'process.versions.node' 2> /dev/null) || return 1
+  major=${version%%.*}
+  minor=${version#*.}
+  minor=${minor%%.*}
+  [[ $major =~ ^[0-9]+$ && $minor =~ ^[0-9]+$ ]] || return 1
+  [ "$major" -gt 22 ] || { [ "$major" -eq 22 ] && [ "$minor" -ge 6 ]; } || return 1
+  [ "$("$1" --experimental-strip-types --disable-warning=ExperimentalWarning setup/onboard/strip-check.ts 2> /dev/null)" = ok ]
+}
+
+if command -v node > /dev/null && fits "$(command -v node)"; then
+  command -v node
+  exit 0
+fi
+
+case $(uname -s) in
+  Linux) os=linux ;;
+  Darwin) os=darwin ;;
+  *) echo "the onboarding page runs on Linux, WSL and macOS; this is $(uname -s)" >&2; exit 2 ;;
+esac
+case $(uname -m) in
+  x86_64 | amd64) arch=x64 ;;
+  aarch64 | arm64) arch=arm64 ;;
+  *) echo "no Node build for this processor ($(uname -m)); install Node 22 and run again" >&2; exit 2 ;;
+esac
+# nodejs.org's Linux builds need glibc; Alpine and other musl systems have their own package.
+if [ "$os" = linux ] && ldd --version 2>&1 | grep -qi musl; then
+  echo "this system uses musl, which nodejs.org does not build for: install nodejs 22 from its packages and run again" >&2
+  exit 2
+fi
+
+name=node-v$NODE_VERSION-$os-$arch
+dir=.bwat/tools/$name
+if [ -x "$dir/bin/node" ] && fits "$dir/bin/node"; then
+  echo "$PWD/$dir/bin/node"
+  exit 0
+fi
+
+want_var=NODE_SHA256_${os}_$arch
+want=${!want_var:-}
+if [ -z "$want" ]; then
+  echo "node.lock has no checksum for $os-$arch" >&2
+  exit 2
+fi
+
+umask 077
+mkdir -p .bwat/tools
+tmp=$(mktemp -d .bwat/tools/.fetch.XXXXXX)
+trap 'rm -rf "$tmp"' EXIT
+echo "fetching Node $NODE_VERSION for the onboarding page (once, into .bwat/tools)" >&2
+if ! curl -fsSL "$dist/v$NODE_VERSION/$name.tar.gz" -o "$tmp/$name.tar.gz"; then
+  echo "could not download Node from $dist; check the network, or install Node 22 and run again" >&2
+  exit 1
+fi
+if command -v sha256sum > /dev/null; then
+  got=$(sha256sum "$tmp/$name.tar.gz")
+else
+  got=$(shasum -a 256 "$tmp/$name.tar.gz")
+fi
+got=${got%% *}
+if [ "$got" != "$want" ]; then
+  echo "the downloaded Node does not match node.lock's checksum; nothing was installed" >&2
+  exit 1
+fi
+tar -xzf "$tmp/$name.tar.gz" -C "$tmp"
+rm -rf "$dir"
+mv "$tmp/$name" "$dir"
+echo "$PWD/$dir/bin/node"

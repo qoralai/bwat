@@ -1,0 +1,240 @@
+#!/usr/bin/env bash
+# Print a Zoom app manifest for this install to stdout.
+#
+#   BWAT_PUBLIC_URL=https://bwat.example.com setup/zoom-manifest           > zoom-manifest.json
+#   BWAT_PUBLIC_URL=https://bwat.example.com setup/zoom-manifest --board   > zoom-board-manifest.json
+#   BWAT_PUBLIC_URL=http://localhost:8080 setup/zoom-manifest              > zoom-manifest.json
+#
+# On http://localhost (trying bwat on this computer) there is the main app only: Zoom
+# opens an in-meeting app only over https, so there is no board app.
+#
+# Add BWAT_MODE=production (a public domain) to include the meeting events; without it
+# the main app has none, since Zoom cannot reach a developer mode's private address.
+#
+# The owner creates each app in the Zoom App Marketplace and uploads its manifest
+# (the click paths are in docs/onboarding/master.md). Zoom allows the in-meeting app only on a
+# user-managed app, so bwat is two apps:
+#   - the main app (admin-managed): the Meeting SDK the bot joins with and, in
+#     production mode, the meeting events the backend handles; setup/zoom-secrets
+#     takes its credentials back;
+#   - the board app (optional, user-managed): bwat's board inside a meeting.
+set -euo pipefail
+
+board=
+case "${1:-}" in
+  --board) board=1 ;;
+  '') ;;
+  *) echo "usage: setup/zoom-manifest [--board]" >&2; exit 2 ;;
+esac
+
+url=${BWAT_PUBLIC_URL:-}
+local=
+if [[ $url =~ ^http://localhost:[0-9]+$ ]]; then
+  local=1
+  if [ -n "$board" ]; then
+    echo "the board app needs an https:// address: Zoom opens an in-meeting app only over https (got '$url')" >&2
+    exit 2
+  fi
+# A lowercase host name only, so the value needs no JSON escaping.
+elif [[ ! $url =~ ^https://[a-z0-9.-]+$ ]]; then
+  echo "BWAT_PUBLIC_URL must be https:// and a lowercase host name, no port or path, or http://localhost:<port> (got '$url')" >&2
+  exit 2
+fi
+host=${url#https://}
+
+plain='^[A-Za-z0-9][A-Za-z0-9 ._()-]*$'
+
+# Zoom's Beta Test (sharing an app inside your account) requires a company name and a
+# contact; plain characters only, so they need no JSON escaping.
+company=${BWAT_ZOOM_COMPANY:-}
+contact=${BWAT_ZOOM_CONTACT_NAME:-}
+email=${BWAT_ZOOM_CONTACT_EMAIL:-}
+for key in BWAT_ZOOM_COMPANY BWAT_ZOOM_CONTACT_NAME; do
+  value=${!key:-}
+  if [[ ! $value =~ $plain ]] || [ "${#value}" -gt 100 ]; then
+    echo "$key must be up to 100 letters, digits, spaces and . _ ( ) -, with no apostrophe, comma or & (got '$value')" >&2
+    exit 2
+  fi
+done
+# The apps are named for whoever installs: "bwat <name> bot" and "bwat <name> board".
+# Plain characters, and at most 39 so the board's name stays within Zoom's 50.
+owner=${BWAT_ZOOM_OWNER_NAME:-${contact%% *}}
+if [[ ! $owner =~ $plain ]] || [ "${#owner}" -gt 39 ]; then
+  echo "BWAT_ZOOM_OWNER_NAME must be up to 39 letters, digits, spaces and . _ ( ) -, with no apostrophe, comma or & (got '$owner')" >&2
+  exit 2
+fi
+if [[ ! $email =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]+$ ]]; then
+  echo "BWAT_ZOOM_CONTACT_EMAIL must be an email address (got '$email')" >&2
+  exit 2
+fi
+listing=$(cat <<LISTING
+    "company_name": "$company",
+    "discover_type": "LISTED",
+    "install_type": "APP_DIRECTORY"
+  },
+  "developer_information": {
+    "contact_details": [
+      {
+        "contact_name": "$contact",
+        "contact_email": "$email",
+        "role": "Owner"
+      }
+    ]
+LISTING
+)
+
+# Meeting events only in production mode: Zoom cannot reach a private address, whoever
+# gives a public one its HTTPS. Starts with the comma that follows the block before it.
+events=
+if [ "${BWAT_MODE:-}" = production ]; then
+  events=$(cat <<EVENTS
+,
+    "event_subscription": {
+      "enable": true,
+      "events": [
+        {
+          "subscription_id": "bwat-meetings",
+          "subscription_name": "bwat meetings",
+          "event_usage": "EVENT_FOR_ADMIN",
+          "event_types": [
+            "meeting.started",
+            "meeting.ended",
+            "meeting.participant_joined"
+          ],
+          "development_webhook_url": "$url/v1/callbacks/zoom/events",
+          "production_webhook_url": "$url/v1/callbacks/zoom/events"
+        }
+      ]
+    }
+EVENTS
+)
+fi
+
+# The main app's redirect and home page. bwat never sends anyone through the main app's
+# OAuth, but Zoom requires a redirect; on localhost Zoom takes http only for development,
+# and there is no home page, the main app having nothing inside a meeting. Each optional
+# piece starts with the newline that ends the line before it.
+prod=$url
+also=
+home=
+if [ -n "$local" ]; then
+  prod=https://${url#http://}
+  also=",
+      \"$prod/\""
+else
+  home="
+    \"development_home_uri\": \"$url/\",
+    \"production_home_uri\": \"$url/\",
+    \"domain_allow_list\": [
+      {
+        \"domain\": \"$host\",
+        \"explanation\": \"This install's address.\"
+      }
+    ],"
+fi
+
+if [ -n "$board" ]; then
+  cat <<EOF
+{
+  "display_information": {
+    "display_name": "bwat $owner board",
+    "description": "bwat's board inside your Zoom meetings.",
+$listing
+  },
+  "oauth_information": {
+    "usage": "USER_OPERATION",
+    "development_redirect_uri": "$url/",
+    "production_redirect_uri": "$url/",
+    "oauth_allow_list": [
+      "$url/"
+    ],
+    "strict_mode": true,
+    "subdomain_strict_mode": true,
+    "scopes": [
+      {
+        "scope": "zoomapp:inmeeting",
+        "optional": false
+      },
+      {
+        "scope": "user:read:user",
+        "optional": false
+      }
+    ],
+    "scope_description": "Open bwat's board inside a meeting and know which meeting it is."
+  },
+  "features": {
+    "products": [
+      "ZOOM_MEETING"
+    ],
+    "development_home_uri": "$url/board.html",
+    "production_home_uri": "$url/board.html",
+    "domain_allow_list": [
+      {
+        "domain": "$host",
+        "explanation": "This install's board."
+      },
+      {
+        "domain": "appssdk.zoom.us",
+        "explanation": "Zoom Apps SDK loaded by the board."
+      }
+    ],
+    "in_client_feature": {
+      "zoom_app_api": {
+        "enable": true,
+        "zoom_app_apis": [
+          "appPopout",
+          "getAppContext",
+          "getMeetingUUID",
+          "getUserContext",
+          "openUrl"
+        ]
+      }
+    }
+  }
+}
+EOF
+  exit 0
+fi
+
+cat <<EOF
+{
+  "display_information": {
+    "display_name": "bwat $owner bot",
+    "description": "Turns what your team commits to in meetings into cited cards.",
+$listing
+  },
+  "oauth_information": {
+    "usage": "ADMIN_MANAGEMENT",
+    "development_redirect_uri": "$url/",
+    "production_redirect_uri": "$prod/",
+    "oauth_allow_list": [
+      "$url/"$also
+    ],
+    "strict_mode": true,
+    "subdomain_strict_mode": true,
+    "scopes": [
+      {
+        "scope": "meeting:read:meeting:admin",
+        "optional": false
+      },
+      {
+        "scope": "meeting:read:participant:admin",
+        "optional": false
+      }
+    ],
+    "scope_description": "Learn when your account's meetings start, end and are joined, and join them with the Meeting SDK."
+  },
+  "features": {
+    "products": [
+      "ZOOM_MEETING"
+    ],$home
+    "embed": {
+      "meeting_sdk": {
+        "enable": true,
+        "enable_device": false,
+        "devices": []
+      }
+    }$events
+  }
+}
+EOF

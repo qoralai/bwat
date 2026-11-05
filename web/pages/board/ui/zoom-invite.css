@@ -1,0 +1,78 @@
+/* Settings redesign C: the Zoom panel's invite box, in the board's own colours (soft.css's
+   --sf-* palette), so Paper and Dark both work. With no cards to show it is the panel's empty
+   state, centred where the cards will be. Over a meeting's cards it is the panel's only thing
+   until See the cards opens them under it (Z1); over an ended meeting's it sits above them. */
+.invite-box{display:flex;flex-direction:column;align-items:center;gap:6px;margin:0 0 16px;padding:20px 18px;text-align:center;color:var(--sf-ink)}
+.zoom-meeting-unavailable .invite-box{padding-top:48px}
+.zoom-meeting-unavailable #workspace,.zoom-invite-alone :is(#workspace,#desk-footer){display:none}
+.invite-lens{width:56px;height:56px}
+.invite-box .invite-title{margin:10px 0 0;font-size:16px;font-weight:650;color:var(--sf-ink)}
+.invite-box .invite-line{margin:0;max-width:280px;font-size:13px;color:var(--sf-ink-3)}
+.invite-act{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:10px}
+/* C3: one primary button, 36px with a mouse and 44px on touch. */
+.invite-box .invite-button{min-width:150px;min-height:36px;padding:0 12px;border:1px solid var(--sf-accent);border-radius:8px;background:var(--sf-accent);color:var(--sf-knob);font-size:13px;font-weight:600}
+.invite-box .invite-button:hover:not(:disabled){border-color:var(--sf-accent);background:var(--sf-accent);color:var(--sf-knob);box-shadow:var(--sf-shadow-card-hover)}
+.invite-box .invite-button:disabled{opacity:.6;cursor:wait;color:var(--sf-knob);background:var(--sf-accent)}
+.invite-box .invite-see,.invite-box .invite-fix{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border:1px solid var(--sf-border);border-radius:8px;background:var(--sf-card);color:var(--sf-ink);font-size:13px;font-weight:600;text-decoration:none}
+.invite-box .invite-fix{border-color:var(--sf-accent);background:var(--sf-accent);color:var(--sf-knob)}
+.invite-box .invite-see:hover:not(:disabled){border-color:var(--sf-border-hover);background:var(--sf-fill)}
+.invite-box :is(.invite-button,.invite-see,.invite-fix):focus-visible{outline:2px solid var(--sf-accent);outline-offset:2px}
+@media (pointer:coarse){.invite-box .invite-button,.invite-box .invite-see,.invite-box .invite-fix,.invite-box .invite-details summary{min-height:44px}}
+/* C4: the three steps, each with the quiet dot; the line between two fills once the first is done. */
+.invite-steps{display:flex;width:100%;max-width:300px;margin:12px 0 2px;padding:0;list-style:none}
+.invite-steps li{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:var(--sf-muted)}
+.invite-steps li+li::before{content:"";position:absolute;top:3px;right:50%;width:100%;height:2px;background:var(--sf-line)}
+.invite-steps li.done+li::before{background:var(--sf-type-decided)}
+.invite-steps li[aria-current=step]{color:var(--sf-ink);font-weight:600}
+.invite-dot{position:relative;z-index:1;width:8px;height:8px;border-radius:50%;background:var(--sf-faint)}
+.invite-dot.on{background:var(--sf-type-decided)}
+.invite-path{display:block;margin-top:4px;color:var(--sf-ink);font-weight:600}
+.invite-path span{display:inline-block}
+/* C5: what a fixer needs, behind Details. */
+.invite-details{max-width:280px;font-size:12px;color:var(--sf-muted)}
+.invite-details summary{color:var(--sf-accent-ink)}
+.invite-details p{margin:4px 0 0}
+
+/* The moments (settings redesign 11-17). Each decorates an answer the server has given. */
+/* 11 · The lens looks for the meeting: its orange arc turns, once every 1.4 s, until the first answer. */
+/* 12 · The accepted button narrows into the first step's dot in 0.3 s, then the steps appear. */
+.invite-box .invite-button{transition:min-width .3s,width .3s,opacity .3s,border-radius .3s}
+.invite-box .invite-button.morph{min-width:0;width:12px;padding:0;border-radius:999px;color:transparent;opacity:.6;pointer-events:none}
+.invite-steps.enter{animation:invite-fade .3s ease-out}
+@keyframes invite-fade{from{opacity:0}}
+/* 13 · A step forward: the line fills in 0.4 s, then the next dot breathes once. */
+.invite-steps li.walk::before{transform-origin:left;animation:invite-fill .4s ease-out backwards}
+@keyframes invite-fill{from{transform:scaleX(0)}}
+.invite-steps li.walk .invite-dot{animation:invite-breathe .5s .4s ease-out backwards}
+@keyframes invite-breathe{50%{transform:scale(1.8)}}
+/* 14 · bwat is in: the box folds up in 0.4 s (zoom-invite.js then hides it), the Live dot
+   breathes once and the listening row washes in to-do blue (arrive-wash, delight.css). */
+.invite-box{max-height:520px;transition:max-height .4s ease-in,opacity .4s,transform .4s}
+.invite-box.fold{max-height:0;padding-top:0;padding-bottom:0;overflow:hidden;opacity:0;transform:translateY(-12px)}
+.invite-box.fade{opacity:0}
+.live-pill-dot.breathe{animation:invite-breathe .5s ease-out}
+.column-empty.listening.invite-wash{--arrive:var(--sf-type-do-bg);animation:arrive-wash 1.6s ease-out 1}
+/* 15 · The way through the door: Zoom's path fades in a word at a time, 80 ms apart. */
+.invite-path.play span{animation:delight-in .3s ease-out backwards}
+.invite-path.play span:nth-child(2){animation-delay:80ms}
+.invite-path.play span:nth-child(3){animation-delay:160ms}
+/* 16 · Lost: the Live dot fades to grey, the same as when bwat leaves (delight.css). */
+/* 17 · An ended meeting's cards: a chip per type in its card colour, washing in 100 ms apart.
+   They are counts of what exists, not a score. */
+.invite-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:6px}
+.invite-chip{padding:2px 9px;border-radius:999px;font-size:12px;color:var(--sf-ink)}
+.invite-chip[data-type=do]{background:var(--sf-type-do-bg)}
+.invite-chip[data-type=ask]{background:var(--sf-type-ask-bg)}
+.invite-chip[data-type=risk]{background:var(--sf-type-risk-bg)}
+.invite-chip[data-type=decided]{background:var(--sf-type-decided-bg)}
+.invite-chips.play .invite-chip{animation:delight-in .35s ease-out backwards}
+.invite-chips.play .invite-chip:nth-child(2){animation-delay:100ms}
+.invite-chips.play .invite-chip:nth-child(3){animation-delay:200ms}
+.invite-chips.play .invite-chip:nth-child(4){animation-delay:300ms}
+
+@media (prefers-reduced-motion:reduce){
+  .invite-steps li.walk::before,.invite-steps li.walk .invite-dot,
+  .live-pill-dot.breathe,.column-empty.listening.invite-wash,.invite-path.play span,.invite-chips.play .invite-chip{animation:none}
+  .invite-box .invite-button{transition:none}
+  .invite-box{transition:opacity .4s}
+}

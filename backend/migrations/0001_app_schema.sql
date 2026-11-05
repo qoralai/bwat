@@ -1,0 +1,8 @@
+
+CREATE SCHEMA bwat;
+GRANT USAGE ON SCHEMA bwat TO bwat_runtime;
+
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+DO $$ BEGIN
+  EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC', current_database());
+END $$;

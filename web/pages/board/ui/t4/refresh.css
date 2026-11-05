@@ -1,0 +1,10 @@
+/* Live refresh: a quiet "New" marker that fades, and one pulse on a card that changed. */
+.card.is-new{position:relative}
+.card.is-new::after{content:"New";position:absolute;top:8px;right:10px;font:600 11px var(--sans);letter-spacing:.04em;color:var(--orange);pointer-events:none;animation:bwat-new-fade 12s ease-in forwards}
+.card.is-changed{animation:bwat-changed-pulse 1.6s ease-out 1}
+@keyframes bwat-new-fade{0%,70%{opacity:1}100%{opacity:0}}
+@keyframes bwat-changed-pulse{0%{box-shadow:0 0 0 0 var(--lime)}40%{box-shadow:0 0 0 4px var(--lime)}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion: reduce){
+  .card.is-new::after{animation:none}
+  .card.is-changed{animation:none;outline:2px solid var(--lime);outline-offset:-2px}
+}

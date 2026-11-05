@@ -1,0 +1,18 @@
+/* State on the card face: done and superseded are struck; superseded is drained
+   of colour but keeps its pointer readable; answered keeps its weight. */
+.card.done h3,.card.retired h3{text-decoration:line-through;text-decoration-thickness:1px}
+.card.retired h3,.card.retired .card-source{color:var(--muted);opacity:.7}
+.card.answered>:is(.card-open,.card-rel){opacity:.55}.card.answered:hover>:is(.card-open,.card-rel){opacity:.8}
+.state-chip{font:12px var(--mono);letter-spacing:.04em;padding:2px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.card-head:has(.state-chip){display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.card-rel{display:flex;flex-wrap:wrap;gap:8px;padding:0 18px 10px;font-size:12px;color:var(--muted)}
+.card-rel .rel a{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+.card-rel .rel.answered a{color:var(--orange)}
+/* A hint from the duplicate check, with its two buttons. */
+.card-rel .hint{display:inline-flex;flex-wrap:wrap;align-items:center;gap:2px 8px}
+.card-rel .hint .text-button{min-height:32px;padding:4px 3px;color:var(--ink)}
+.rel-line{margin:6px 0;font-size:13px}
+/* How the meeting was captured -- a quiet dot before the source line. */
+/* the open card was replaced or merged into another. */
+.reader-replaced{margin:10px 16px 0;padding:8px 10px;border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:6px;background:var(--surface);font-size:13px}
+.reader-replaced button{margin-left:6px}

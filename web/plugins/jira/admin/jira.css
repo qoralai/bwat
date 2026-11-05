@@ -1,0 +1,91 @@
+/* The jira plugin's setup card (Setup.tsx), in the panel's look (admin/src/styles.css tokens). */
+
+/* Jira as one connection: a short form, then a card with its dot. The pair of fields wraps, and
+   no input is wider than the card, down to a phone's width. */
+.jira-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.jira-form .field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.jira-form input {
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.jira-form .field input[aria-label='Project key'] {
+  flex: 0 1 6rem;
+  width: 6rem;
+}
+
+.jira-form .field input[aria-label='Account email'] {
+  flex: 1 1 12rem;
+}
+
+.jira .secret-row small {
+  overflow-wrap: anywhere;
+}
+
+/* The button rises onto the sample once Jira says yes. */
+.sample {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-height: 6rem;
+  margin-bottom: 0.25rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 1px 1px rgb(29 33 41 / 4%), 0 2px 10px rgb(29 33 41 / 5%);
+}
+
+.sample .muted {
+  font-size: 0.75rem;
+}
+
+.routebtn {
+  margin-top: 0.25rem;
+  padding: 0.125rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.35s,
+    transform 0.35s;
+}
+
+.routebtn.in {
+  opacity: 1;
+  transform: none;
+}
+
+.jira.fresh .routebtn.in {
+  transition-delay: 0.25s;
+}
+
+/* A connection already made when the page opened shows its button without rising. */
+.jira:not(.fresh) .routebtn {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .routebtn {
+    transform: none;
+  }
+}

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# The self-host installer's launcher; everything lives in setup/bwat.
+exec "$(dirname "$0")/setup/bwat" "$@"

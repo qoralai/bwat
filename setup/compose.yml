@@ -1,0 +1,33 @@
+# The install overlay, layered on docker-compose.yml through COMPOSE_FILE in the
+# .env that ./bwat setup writes: what a real install changes from the local stack.
+services:
+  postgres:
+    restart: unless-stopped
+
+  backend:
+    environment:
+      # Production refuses the dev token and requires Google sign-in settings.
+      NODE_ENV: production
+      BWAT_DEV_PERSON_TOKEN: ""
+      # The edge is the only proxy in front; its compose network is in this range.
+      BWAT_TRUST_PROXY: 172.16.0.0/12
+      # The bot's name in meetings, asked by setup; the admin panel can change it.
+      BWAT_BOT_NAME: ${BWAT_BOT_NAME:-bwat}
+      # Jev, asked by setup: off turns it off until the admin panel's Use Jev turns it on (QOR-4769).
+      BWAT_JEV: ${BWAT_JEV:-}
+    restart: unless-stopped
+
+  cards:
+    environment:
+      BWAT_DEV_PERSON_TOKEN: ""
+    restart: unless-stopped
+
+  web:
+    restart: unless-stopped
+
+  edge:
+    restart: unless-stopped
+
+  # The Zoom SDK is Linux x86_64 only; on an Apple-silicon Mac, Docker runs the bot emulated.
+  bot-zoom:
+    platform: linux/amd64

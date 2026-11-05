@@ -1,0 +1,52 @@
+{
+  "display_information": {
+    "display_name": "bwat Ada bot",
+    "description": "Turns what your team commits to in meetings into cited cards.",
+    "company_name": "Example",
+    "discover_type": "LISTED",
+    "install_type": "APP_DIRECTORY"
+  },
+  "developer_information": {
+    "contact_details": [
+      {
+        "contact_name": "Ada",
+        "contact_email": "ada@example.com",
+        "role": "Owner"
+      }
+    ]
+  },
+  "oauth_information": {
+    "usage": "ADMIN_MANAGEMENT",
+    "development_redirect_uri": "http://localhost:8080/",
+    "production_redirect_uri": "https://localhost:8080/",
+    "oauth_allow_list": [
+      "http://localhost:8080/",
+      "https://localhost:8080/"
+    ],
+    "strict_mode": true,
+    "subdomain_strict_mode": true,
+    "scopes": [
+      {
+        "scope": "meeting:read:meeting:admin",
+        "optional": false
+      },
+      {
+        "scope": "meeting:read:participant:admin",
+        "optional": false
+      }
+    ],
+    "scope_description": "Learn when your account's meetings start, end and are joined, and join them with the Meeting SDK."
+  },
+  "features": {
+    "products": [
+      "ZOOM_MEETING"
+    ],
+    "embed": {
+      "meeting_sdk": {
+        "enable": true,
+        "enable_device": false,
+        "devices": []
+      }
+    }
+  }
+}

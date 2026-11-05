@@ -1,0 +1,41 @@
+/* The account menu on your name (account.js). The session rows are the Send to
+   Claude picker's (soft.css shares them with .account-menu); this is the menu round them. */
+button.viewer-name{border:0;background:transparent;font:inherit;cursor:pointer}
+.viewer-chev{font-size:10px;color:var(--muted);transition:transform .15s}
+.viewer-name[aria-expanded=true] .viewer-chev{transform:rotate(180deg)}
+:root[data-theme] body:not(.surface-zoom) .viewer-label.locked .viewer-name{max-width:220px;padding:4px 8px 4px 4px;border-radius:20px;color:var(--sf-ink);font-size:13.5px}
+:root[data-theme] body:not(.surface-zoom) .viewer-label.locked button.viewer-name:is(:hover,[aria-expanded=true]){background:var(--sf-fill)}
+:root[data-theme] .viewer-name:focus-visible{outline:2px solid var(--sf-accent);outline-offset:2px}
+.viewer-name-text{min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+.account-menu{position:absolute;z-index:30;display:grid;grid-template-columns:minmax(0,1fr);width:320px;max-width:calc(100vw - 16px);max-height:min(460px,calc(100vh - 80px));overflow:auto;padding:6px;border-radius:14px;
+  background:var(--sf-raise);color:var(--sf-ink);box-shadow:var(--sf-shadow-panel);transform-origin:top right;animation:account-pop .14s ease-out}
+.account-menu.sheet{left:8px;right:8px;width:auto;max-width:none}
+@keyframes account-pop{from{opacity:0;transform:scale(.96) translateY(-4px)}to{opacity:1;transform:none}}
+.account-who{display:flex;align-items:center;gap:12px;padding:10px 10px 12px;min-width:0}
+.account-av{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;background:var(--sf-accent);color:#fff;font-size:16px;font-weight:700}
+.account-id{min-width:0}
+.account-id b{display:block;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-id small{display:block;color:var(--sf-muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-sep{height:1px;margin:4px 6px;background:var(--sf-line)}
+.account-item{display:flex;align-items:center;gap:10px;width:100%;min-height:38px;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:var(--sf-ink);
+  font:inherit;font-size:13.5px;text-align:left;text-decoration:none;cursor:pointer}
+.account-item:hover{background:var(--sf-fill)}
+.account-item:focus-visible{outline:2px solid var(--sf-accent);outline-offset:-2px}
+.account-item small{margin-left:auto;min-width:0;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sf-muted);font-size:12px}
+.account-chev{color:var(--sf-muted);font-size:10px}
+#account-signout{color:var(--sf-ink-3)}
+.account-menu.sheet .account-item{min-height:44px;padding:0 12px;font-size:14px}
+
+.account-sessions{padding:2px 6px 8px;animation:account-pop .14s ease-out;transform-origin:top center}
+.account-sessions .send-heading{margin:8px 2px 4px;font-size:10.5px}
+.account-sessions .send-heading+.send-group,.account-sessions .send-group{margin-top:0}
+.account-sessions .send-heading~.send-heading{margin-top:10px}
+.account-sessions .send-session-name{font-size:13.5px;font-weight:600}
+.account-sessions .send-session-meta{margin-right:4px;font-size:12px;font-weight:500;color:var(--sf-muted)}
+.account-sessions .send-list .send-session-row,.account-sessions .send-list .send-session{min-height:40px}
+.account-sessions .send-list .send-session{padding-left:12px}
+.account-sessions .send-pin{width:28px;height:28px;min-height:28px}
+.account-sessions .send-empty,.account-sessions .session-help,.account-sessions .send-default-off{margin:6px 4px;color:var(--sf-muted);font-size:12.5px}
+.account-menu.sheet .account-sessions .send-list .send-session-row,.account-menu.sheet .account-sessions .send-list .send-session{min-height:44px}
+@media (prefers-reduced-motion:reduce){.account-menu,.account-sessions,.viewer-chev{animation:none;transition:none}}

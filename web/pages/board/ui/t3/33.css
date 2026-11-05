@@ -1,0 +1,20 @@
+/* Accessibility: readable sizes, touch targets,
+   obvious clickability, one action-link style in both themes.
+   Contrast checked 2026-09-23: --muted is 5.56:1 on the light ground, 6.05:1
+   on white, 5.58:1 on the dark ground, 6.28:1 on the dark surface -- all
+   above 4.5:1, so no colour change here. */
+
+/* 12px floor for every label, meta line, eyebrow, id and mono caption.
+   !important because the study/desk sheets set 9-11px at higher specificity
+   and inside media queries. */
+.eyebrow,.meeting-strip .eyebrow,.page-intro .eyebrow,.evidence .eyebrow,.quote-preview>.eyebrow,.desk-column .eyebrow,.card-code,.badge,.reader-top .badge,.card-source,.avatar,.viewer-label,.session-help,.draft-status,.status-box code,.list-end,.meeting-strip p{font-size:12px !important}
+
+/* Zoom panel: 36px targets for a mouse, 44px for a finger. */
+body.surface-zoom button,body.surface-zoom select,body.surface-zoom input:not([type=checkbox]){min-height:36px !important}
+@media (pointer:coarse){body.surface-zoom button,body.surface-zoom select,body.surface-zoom input:not([type=checkbox]){min-height:44px !important}}
+
+/* A card looks clickable: its title underlines on hover and keyboard focus,
+   and the focus ring sits inside the card so overflow cannot clip it. */
+.card-open{cursor:pointer}
+.card-open:hover h3,.card-open:focus-visible h3{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.card-open:focus-visible{outline:3px solid var(--orange);outline-offset:-3px}

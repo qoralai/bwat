@@ -1,0 +1,3 @@
+/* "Unassigned to-dos" is longer than "Unassigned": let scope labels wrap in a
+   narrow panel instead of pushing the row wider than the viewport. */
+.segmented button{white-space:normal;line-height:1.2}

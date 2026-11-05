@@ -1,0 +1,83 @@
+[
+ {
+  "value": "",
+  "parts": {
+   "hidden": 0,
+   "last4": null
+  },
+  "unfocused": "",
+  "focused": ""
+ },
+ {
+  "value": "a",
+  "parts": {
+   "hidden": 1,
+   "last4": null
+  },
+  "unfocused": "*",
+  "focused": "*"
+ },
+ {
+  "value": "abc1",
+  "parts": {
+   "hidden": 4,
+   "last4": null
+  },
+  "unfocused": "****",
+  "focused": "****"
+ },
+ {
+  "value": "0123456789abcde",
+  "parts": {
+   "hidden": 15,
+   "last4": null
+  },
+  "unfocused": "***************",
+  "focused": "***************"
+ },
+ {
+  "value": "0123456789abcdef",
+  "parts": {
+   "hidden": 12,
+   "last4": "cdef"
+  },
+  "unfocused": "************cdef",
+  "focused": "****************"
+ },
+ {
+  "value": "fakegc-qqqqqqqqqqqqqqqqqqqqqqqqa1b2",
+  "parts": {
+   "hidden": 31,
+   "last4": "a1b2"
+  },
+  "unfocused": "*******************************a1b2",
+  "focused": "***********************************"
+ },
+ {
+  "value": "fake-key-0000000000000000000000000000000000000000000000000000000000009f3c",
+  "parts": {
+   "hidden": 69,
+   "last4": "9f3c"
+  },
+  "unfocused": "*********************************************************************9f3c",
+  "focused": "*************************************************************************"
+ },
+ {
+  "value": "AbxxxxxxxxxxxxxxxxxxxxxxxxxxQ7x2",
+  "parts": {
+   "hidden": 28,
+   "last4": "Q7x2"
+  },
+  "unfocused": "****************************Q7x2",
+  "focused": "********************************"
+ },
+ {
+  "value": "with space_and-dash.~ok1",
+  "parts": {
+   "hidden": 20,
+   "last4": "~ok1"
+  },
+  "unfocused": "********************~ok1",
+  "focused": "************************"
+ }
+]

@@ -1,0 +1,20 @@
+# The one place the Zoom Meeting SDK and the headless sample it builds on are pinned.
+# Read by bot/sdk/prepare-vendor.sh (a pipeline that builds the bot image, and a self-hosted install's setup).
+# Shell-sourceable: plain KEY="value", no expansion.
+
+# The SDK is licensed and never in this repository: each install downloads its own
+# archive. Any packaging of the archive is accepted; the library inside is what must match.
+ZOOM_SDK_VERSION="7.0.2.5001"
+ZOOM_SDK_SO_SHA256="2d04ce8399c9951e681173b40a4fd9be7891ebd173ec6a82a5fd38b7611cdda1"
+# Zoom offers only its latest SDK, so a self-hosted install builds any version from this one
+# on (setup/zoom-sdk); only ZOOM_SDK_VERSION's library is checked by its hash. A pipeline
+# that builds the bot image without --untested builds ZOOM_SDK_VERSION alone.
+ZOOM_SDK_MIN_VERSION="7.0.2.5001"
+
+# The official headless sample. bwat-sample.patch applies to this commit and no other.
+ZOOM_SAMPLE_REPO="https://github.com/zoom/meetingsdk-headless-linux-sample"
+ZOOM_SAMPLE_REF="c10031ec1b901494f30d1c6e7d075b6da3f83718"
+
+# Upgrading: change the version and the library hash together, then build the image;
+# the compile is the only check of the headers against the patch. Moving the sample ref
+# means regenerating the patch.

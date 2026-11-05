@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# setup/docker-rosetta <command>: exits 1, saying how to turn it off, when Docker Desktop on
+# an Apple-silicon Mac emulates x86_64 with Rosetta, which hangs the bot's x86_64 build.
+# <command> is what to run again afterwards. Run by setup before its first question, and by
+# prep --check, so nobody collects every value before finding out.
+#
+# Docker Desktop's settings: settings-store.json, key UseVirtualizationFrameworkRosetta
+# (Docker Desktop 4.35 on; the key as Microsoft's vscode-mssql reads it, dockerUtils.ts),
+# or settings.json before, key useVirtualizationFrameworkRosetta (Docker's settings
+# management reference). Hence -i: one pattern for both. Rosetta is on by default
+# (macOS 14.1 on) and the key may be absent until it is changed, so only an explicit
+# false passes. Without Docker Desktop (OrbStack, Colima) there is no check.
+#
+# macOS may refuse to let another app read Docker's Group Container ("Operation not
+# permitted"). Then nothing is known, so nothing is said: the setting is taken to be right
+# (asking the person to check it by hand is a step most never need). BWAT_ROSETTA_CHECK=off
+# skips the check.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+[ "${BWAT_ROSETTA_CHECK:-}" != off ] || exit 0
+[ "$(uname -s)" = Darwin ] && [ "$(uname -m)" = arm64 ] || exit 0
+docker_settings="$HOME/Library/Group Containers/group.com.docker"
+[ -d "$docker_settings" ] || exit 0
+
+settings=
+unreadable=
+for file in "$docker_settings/settings-store.json" "$docker_settings/settings.json"; do
+  [ -e "$file" ] || continue
+  if content=$(cat "$file" 2>/dev/null); then settings+=$content; else unreadable=1; fi
+done
+path=$(setup/paths docker-rosetta)
+[ -n "$settings" ] || [ -z "$unreadable" ] || exit 0
+if ! grep -qi '"useVirtualizationFrameworkRosetta"[[:space:]]*:[[:space:]]*false' <<< "$settings"; then
+  echo "Docker Desktop is using Rosetta for x86_64 emulation, which hangs the bot build. In $path, apply and restart, then run ${1:-./bwat setup} again. (If it is already unticked: BWAT_ROSETTA_CHECK=off skips this check.)"
+  exit 1
+fi

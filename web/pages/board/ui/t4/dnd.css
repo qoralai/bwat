@@ -1,0 +1,5 @@
+/* Your own to-dos can be dragged into your top five. */
+.card.prio-draggable{cursor:grab}
+.card.prio-dragging{opacity:.5}
+.card.prio-drop-before{box-shadow:0 -3px 0 var(--orange) !important}
+.card.prio-drop-after{box-shadow:0 3px 0 var(--orange) !important}

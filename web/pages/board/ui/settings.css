@@ -1,0 +1,78 @@
+/* Board settings drawer. The dialog reuses .send-dialog's frame. */
+/* Settings redesign B7: a full-height panel in from the right in 0.28 s, over no dimmed
+   backdrop (soft.css); in place under Reduce Motion. settings.js adds .in on the next frame.
+   Widths are 100%, not 100vw: 100vw counts a classic scrollbar and the drawer ran off the left. */
+.settings-open{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-width:44px;padding:0;margin-left:8px;flex:none;background:transparent}
+.settings-open svg{width:20px;height:20px}
+body.surface-zoom .settings-open{margin-left:4px}
+.settings-dialog{position:fixed;inset:0 0 0 auto;margin:0;width:min(440px,100%);max-width:none;height:100%;max-height:none;border-radius:0;transform:translateX(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.settings-dialog.in{transform:none}
+body.surface-zoom .settings-dialog{width:100%}
+@media (prefers-reduced-motion:reduce){.settings-dialog{transition:none}}
+/* Design pass (10/1): a title row, then one section per setting --
+   title, a line of help, a segmented control -- on an even 16px rhythm. */
+.settings-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:12px}
+.settings-head h2{font-size:20px;letter-spacing:-.2px;margin:0}
+.settings-close{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;min-height:36px;padding:0;border-radius:8px;border-color:transparent;background:transparent;font-size:22px;line-height:1;color:var(--muted)}
+.settings-close:hover{color:var(--ink);background:var(--paper)}
+/* B3/B4: This meeting, one row: bwat's line and Remove bwat, then its confirm line. */
+.settings-meeting .live-pill-dot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:var(--red)}
+.settings-leave,.settings-cancel{min-height:32px;padding:0 12px;border-radius:8px;font-size:13px;font-weight:600;white-space:nowrap}
+.settings-meeting-confirm{flex-wrap:wrap;gap:8px}
+.settings-meeting-confirm .settings-help{flex:1;min-width:0}
+.settings-cancel{border-color:transparent;background:none}
+@media (pointer:coarse){.settings-leave,.settings-cancel{min-height:44px}}
+/* Settings redesign A1: three short groups (Your board, Show, Moments), each row its name on
+   the left and a switch or a two-way choice on the right. */
+.settings-group{margin:14px 0 2px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.settings-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;margin:0;padding:4px 0;border:0;border-bottom:1px solid var(--line);min-width:0}
+.settings-label{min-width:0;font-size:14px;font-weight:500;color:var(--ink)}
+.settings-help{display:block;margin:0;font-size:12px;line-height:1.3;color:var(--muted)}
+/* A switch: a checkbox drawn as a 36x22 track with a 16px knob. */
+.settings-switch{position:relative;flex:none;width:36px;height:22px}
+.settings-switch input{position:absolute;inset:0;width:100%;height:100%;min-height:0;margin:0;opacity:0;cursor:pointer}
+.settings-switch i{position:absolute;inset:0;border-radius:999px;background:var(--line);transition:background .18s;pointer-events:none}
+.settings-switch i::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #0004;transition:transform .18s}
+.settings-switch input:checked+i{background:var(--accent)}
+.settings-switch input:checked+i::after{transform:translateX(14px)}
+.settings-switch input:focus-visible+i{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.settings-switch i,.settings-switch i::after{transition:none}}
+.settings-seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:3px;border:1px solid var(--line);border-radius:9px;background:var(--paper)}
+.settings-opt{position:relative;display:inline-flex}
+.settings-opt input{position:absolute;inset:0;width:100%;height:100%;min-height:0;margin:0;opacity:0;cursor:pointer}
+.settings-btn{display:inline-flex;align-items:center;min-height:34px;padding:6px 14px;border:1px solid transparent;border-radius:6px;font-size:13px;font-weight:550;color:var(--muted);white-space:nowrap}
+.settings-opt:hover .settings-btn{color:var(--ink)}
+.settings-opt input:checked+.settings-btn{background:var(--surface);border-color:var(--line);color:var(--ink);box-shadow:0 1px 3px #1c332214}
+.settings-opt input:focus-visible+.settings-btn{outline:2px solid #f15a36;outline-offset:2px}
+/* The tip: below the button and inside the dialog (its edges clip), on hover or keyboard focus. */
+.settings-opt[data-tip]:hover::after,.settings-opt[data-tip]:has(input:focus-visible)::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);z-index:5;width:max-content;max-width:220px;padding:6px 9px;border-radius:6px;background:var(--ink);color:var(--paper);font-size:12px;font-weight:500;line-height:1.35;white-space:normal;pointer-events:none;box-shadow:0 4px 14px #0003}
+.settings-opt[data-tip]:first-child:hover::after,.settings-opt[data-tip]:first-child:has(input:focus-visible)::after{left:0;transform:none}
+.settings-opt[data-tip]:last-child:hover::after,.settings-opt[data-tip]:last-child:has(input:focus-visible)::after{left:auto;right:0;transform:none}
+/* Company settings (A3): owners and admins only, a bordered row out to the admin panel. */
+.settings-company{display:flex;align-items:center;gap:10px;margin-top:14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;color:var(--ink);text-decoration:none}
+.settings-company .settings-label{flex:1}
+.settings-foot{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:12px;margin:0;font-size:12px;color:var(--muted)}
+.settings-version{font-family:var(--mono)}
+/* Account mock-up M1: Send bwat to a meeting, the full board's: a labelled link field and one primary
+   button, then the error, or the claim's progress with the quiet dot (green once bwat is in). */
+.settings-send{display:grid;gap:6px;margin:6px 0 4px;min-width:0}
+.settings-send-label{font-size:13px;font-weight:600;color:var(--sf-ink-3)}
+.settings-send-row{display:flex;gap:8px;min-width:0}
+.settings-send-row input{flex:1;min-width:0;min-height:36px;padding:6px 10px;border:1px solid var(--sf-border);border-radius:8px;background:var(--sf-page);color:var(--sf-ink);font-size:14px}
+.settings-send-row input::placeholder{color:var(--sf-faint)}
+.settings-send-row input:focus-visible{outline:2px solid var(--sf-accent);outline-offset:1px;border-color:var(--sf-accent)}
+.settings-send-go{flex:none;min-height:36px;padding:0 14px;border:1px solid var(--sf-accent);border-radius:8px;background:var(--sf-accent);color:var(--sf-knob);font-size:13px;font-weight:600}
+.settings-send-go:hover:not(:disabled){border-color:var(--sf-accent);background:var(--sf-accent);color:var(--sf-knob);box-shadow:var(--sf-shadow-card-hover)}
+.settings-send-go:disabled{opacity:.5;border-color:var(--sf-accent);background:var(--sf-accent);color:var(--sf-knob)}
+.settings-send-go:focus-visible{outline:2px solid var(--sf-accent);outline-offset:2px}
+@media (pointer:coarse){.settings-send-row input,.settings-send-go{min-height:44px}}
+.settings-send-error{margin:0;font-size:13px;line-height:1.4;color:var(--sf-live-ink);overflow-wrap:anywhere}
+.settings-send-status{display:flex;align-items:baseline;gap:8px;margin:0;font-size:13px;line-height:1.4;color:var(--sf-ink-3);overflow-wrap:anywhere}
+.settings-send-status:empty{display:none}
+.settings-send-dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--sf-faint)}
+.settings-send-status[data-state=attending] .settings-send-dot{background:var(--sf-ok)}
+.settings-send-status[data-state=refused] .settings-send-dot{background:var(--sf-live)}
+/* One short pulse on the dot when bwat comes in; none under Reduce Motion. */
+.settings-send-status.joined .settings-send-dot{animation:settings-send-joined .6s ease-out 1}
+@keyframes settings-send-joined{from{box-shadow:0 0 0 0 var(--sf-ok)}to{box-shadow:0 0 0 6px transparent}}
+@media (prefers-reduced-motion:reduce){.settings-send-status.joined .settings-send-dot{animation:none}}

@@ -1,0 +1,5 @@
+# Runtime. Versions are floors, pinned properly when the port lands.
+httpx>=0.27
+psycopg[binary]>=3.2
+psycopg-pool>=3.2
+websockets>=15

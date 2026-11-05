@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+# Build the bot image on this host from the Zoom Meeting SDK archive the company
+# downloaded from Zoom (bwat never ships the SDK, and the image never leaves the host).
+#
+#   setup/zoom-sdk [archive]  default: the SDK archive given to the setup page (.bwat/sdk/) or
+#                             in ~/Downloads, the tested version if there, else the newest
+#                             from ZOOM_SDK_MIN_VERSION on
+#   setup/zoom-sdk --find     prints that archive's path (exit 1: none), for setup/prep
+#
+# Zoom offers only its latest SDK, so a newer one than the tested version is built too, with
+# a note: the compile is the check of its headers against bwat's patch. With none downloaded
+# and someone there to see it (a terminal, or the setup page), it opens the Marketplace and
+# waits for the download, so nobody runs setup again (BWAT_SDK_WAIT=off: no wait).
+#
+# bot/sdk/prepare-vendor.sh checks the SDK library against bot/sdk/zoom-sdk.lock and
+# lays out bot/sdk/vendor/; the image's zoom stage is built from that.
+#
+# One build at a time: the setup page starts one in the background once the SDK is there,
+# and setup's own step then waits for it (.bwat/sdk/build.lock) instead of building again.
+# A newer version that built is noted in .bwat/sdk/built (version and library sha256), on
+# this computer only, so building it again says so instead of warning it is untested.
+set -euo pipefail
+# Git Bash on Windows would rewrite /-paths in docker arguments into Windows paths.
+export MSYS_NO_PATHCONV=1
+
+find_only=
+[ "${1:-}" != --find ] || { find_only=1; shift; }
+archive=${1:-}
+# Git Bash: tar reads C:\... as a remote host; /c/... is the same file.
+if [ -n "$archive" ] && command -v cygpath > /dev/null; then
+  archive=$(cygpath -u "$archive")
+fi
+# Relative to where it was run from, before moving to the repository.
+if [ -n "$archive" ] && [[ $archive != /* ]]; then
+  archive=$PWD/${archive#./}
+fi
+cd "$(dirname "$0")/.."
+
+# shellcheck source=../bot/sdk/zoom-sdk.lock
+. bot/sdk/zoom-sdk.lock
+# The Marketplace; its deeper pages come from setup/paths.
+ZOOM_MARKETPLACE_URL=https://marketplace.zoom.us/
+
+# The setup page's copy (dropped there, or sent to a cloud server), and where Zoom's
+# downloads land; under WSL, the Windows one too. Newest first.
+# A full path, as every other found archive is: prepare-vendor.sh reads it from bot/sdk.
+sdk_dir=$PWD/.bwat/sdk
+downloads() { ls -t "$sdk_dir"/zoom-meeting-sdk-linux*.tar* "$HOME"/Downloads/zoom-meeting-sdk-linux*.tar* /mnt/c/Users/*/Downloads/zoom-meeting-sdk-linux*.tar* 2>/dev/null || true; }
+version_of() { basename "$1" | sed -n 's/^zoom-meeting-sdk-linux_x86_64-\([0-9][0-9.]*[0-9]\).*/\1/p'; }
+# Whether version $1 is $2 or later, four numbers each (macOS's sort has no -V).
+at_least() {
+  local IFS=. a b i
+  read -r -a a <<< "$1"
+  read -r -a b <<< "$2"
+  for i in 0 1 2 3; do
+    [ "${a[i]:-0}" -gt "${b[i]:-0}" ] && return 0
+    [ "${a[i]:-0}" -lt "${b[i]:-0}" ] && return 1
+  done
+  return 0
+}
+# A download still going: a browser's partial file (.crdownload, .download, .part), or the
+# empty file Firefox puts beside its .part until it finishes.
+unfinished() { [[ $1 =~ \.(crdownload|download|part)$ ]] || [ -e "$1.part" ] || [ -e "$1.crdownload" ] || [ -e "$1.download" ]; }
+# The tested version if downloaded, else the newest one from the minimum on.
+find_archive() {
+  local file version best= best_version=
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    unfinished "$file" && continue
+    version=$(version_of "$file")
+    [ -n "$version" ] || continue
+    if [ "$version" = "$ZOOM_SDK_VERSION" ]; then echo "$file"; return; fi
+    at_least "$version" "$ZOOM_SDK_MIN_VERSION" || continue
+    if [ -z "$best" ] || ! at_least "$best_version" "$version"; then best=$file; best_version=$version; fi
+  done < <(downloads)
+  [ -z "$best" ] || echo "$best"
+}
+
+if [ -n "$find_only" ]; then
+  found=$(find_archive)
+  [ -n "$found" ] || exit 1
+  echo "$found"
+  exit 0
+fi
+
+where="In the Zoom App Marketplace ($ZOOM_MARKETPLACE_URL), open your bwat app, then $(setup/paths zoom-sdk-download),
+and download the Linux x86_64 SDK (Zoom's latest is fine) into your Downloads folder."
+
+# Opened from the setup page's runs too: BWAT_NO_BROWSER only stops setup reopening the page.
+open_page() {
+  [ "${BWAT_SDK_OPEN:-}" != off ] || return 0
+  if [ "$(uname -s)" = Darwin ]; then open "$1"
+  elif command -v cmd.exe > /dev/null; then cmd.exe /c start "" "$1" > /dev/null 2>&1
+  elif command -v xdg-open > /dev/null; then xdg-open "$1" > /dev/null 2>&1
+  fi || true
+}
+
+# None downloaded, and someone there: the Marketplace opens and setup waits for the file,
+# taking it once its size holds still between two looks.
+if [ -z "$archive" ]; then
+  archive=$(find_archive)
+  if [ -z "$archive" ] && [ "${BWAT_SDK_WAIT:-}" != off ] && { [ -t 0 ] || [ -n "${BWAT_ONBOARD_PAGE:-}" ]; }; then
+    echo "No Zoom Meeting SDK in your Downloads folder yet."
+    echo "$where"
+    open_page "$ZOOM_MARKETPLACE_URL"
+    wait=${BWAT_SDK_WAIT_SECONDS:-1200}
+    minutes=$(( (wait + 59) / 60 ))
+    echo "Waiting up to $minutes minute$([ "$minutes" -eq 1 ] || echo s) for the download; setup carries on once it is there (Ctrl-C stops)."
+    size=
+    for ((waited = 0; waited < wait; waited += 3)); do
+      archive=$(find_archive)
+      if [ -n "$archive" ]; then
+        now=$(wc -c < "$archive" | tr -d ' ')
+        [ "$now" = "$size" ] && break
+        size=$now
+      fi
+      archive=
+      sleep 3
+    done
+  fi
+fi
+if [ -z "$archive" ]; then
+  # A download still going, or one that cannot be used, is named, and why.
+  other= partial=
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    if unfinished "$file"; then partial=${partial:-$file}; else other=${other:-$file}; fi
+  done < <(downloads)
+  if [ -z "$other" ] && [ -n "$partial" ]; then
+    cat >&2 <<EOF
+$partial is still downloading. Once it has finished, run setup again, or from the bwat folder: setup/zoom-sdk
+EOF
+    exit 2
+  fi
+  if [ -n "$other" ]; then
+    cat >&2 <<EOF
+Found $other, but bwat needs the Zoom Meeting SDK for Linux x86_64, $ZOOM_SDK_MIN_VERSION or later.
+$where
+EOF
+    exit 2
+  fi
+fi
+if [ -z "$archive" ] || [ ! -f "$archive" ]; then
+  cat >&2 <<EOF
+No Zoom Meeting SDK archive found in your Downloads folder.
+$where
+Then run setup again, or from the bwat folder: setup/zoom-sdk <the downloaded file>
+EOF
+  exit 2
+fi
+version=$(version_of "$archive")
+if [ -z "$version" ] || ! at_least "$version" "$ZOOM_SDK_MIN_VERSION"; then
+  cat >&2 <<EOF
+$archive is not the Zoom Meeting SDK for Linux x86_64, $ZOOM_SDK_MIN_VERSION or later.
+$where
+EOF
+  exit 2
+fi
+
+# One build at a time. A lock whose holder has gone is taken over; one whose holder has not
+# yet written its pid is given a moment. A wait for another build ends with its image when
+# that image is of this bot/ tree.
+tree=$(git rev-parse HEAD:bot 2>/dev/null || true)
+current() { [ -n "$tree" ] && [ "$(docker image inspect -f '{{index .Config.Labels "bwat.bot-tree"}}' bwat-bot:zoom 2>/dev/null || true)" = "$tree" ]; }
+mkdir -p "$sdk_dir"
+lock=$sdk_dir/build.lock waited= blank=0
+until mkdir "$lock" 2> /dev/null; do
+  holder=$(cat "$lock/pid" 2> /dev/null || true)
+  if [ -n "$holder" ] && kill -0 "$holder" 2> /dev/null; then
+    [ -n "$waited" ] || echo "The meeting bot is already being built (the setup page started it); waiting for that build to finish."
+    waited=1 blank=0
+  elif [ -z "$holder" ] && [ $((blank += 1)) -lt 10 ]; then :
+  # Only the lock that was looked at: another waiter may have taken it over since.
+  else [ "$(cat "$lock/pid" 2> /dev/null || true)" != "$holder" ] || rm -rf "$lock"; continue
+  fi
+  sleep "${BWAT_SDK_LOCK_POLL:-3}"
+done
+echo $$ > "$lock/pid"
+trap 'rm -rf "$lock"' EXIT
+if [ -n "$waited" ] && current; then
+  echo "built bwat-bot:zoom"
+  exit 0
+fi
+
+echo "building the bot from $archive"
+untested=()
+if [ "$version" != "$ZOOM_SDK_VERSION" ]; then
+  # The library that built here before at this version, if any.
+  built=$(sed -n "s/^$version \([0-9a-f]\{64\}\)\$/\1/p" "$sdk_dir/built" 2> /dev/null | tail -n 1 || true)
+  if [ -n "$built" ]; then
+    echo "This is version $version, which has built on this computer before; bwat is tested with $ZOOM_SDK_VERSION."
+  else
+    echo "This is version $version; bwat is tested with $ZOOM_SDK_VERSION. Building it all the same: a build that fails naming a missing symbol means this version needs a change in bwat."
+  fi
+  untested=(--untested "$version" ${built:+--known "$built"})
+fi
+bot/sdk/prepare-vendor.sh ${untested[@]+"${untested[@]}"} "$archive"
+# The Zoom SDK is Linux x86_64 only: on an Apple-silicon Mac Docker builds it emulated.
+# setup/bwat rebuilds when bot/'s git tree differs from this label.
+docker build --platform linux/amd64 --target zoom \
+  --label "bwat.bot-tree=$tree" -t bwat-bot:zoom bot
+# A newer version noted once it has built, with its library's hash, on this computer only.
+if [ ${#untested[@]} -gt 0 ] && [ -s bot/sdk/vendor/zoom-sdk.sha256 ]; then
+  line="$version $(cat bot/sdk/vendor/zoom-sdk.sha256)"
+  grep -qxF "$line" "$sdk_dir/built" 2> /dev/null || echo "$line" >> "$sdk_dir/built"
+fi
+echo "built bwat-bot:zoom"

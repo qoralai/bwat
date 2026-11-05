@@ -1,0 +1,1214 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d89d7cd..a74f9e9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ set(CMAKE_CXX_COMPILER /usr/bin/g++)
+ 
+-set(CMAKE_BUILD_TYPE Debug)
++set(CMAKE_BUILD_TYPE Release)
+ set(CMAKE_SYSTEM_NAME Linux)
+ set(CMAKE_SYSTEM_PROCESSOR x86_64)
+ 
+@@ -23,9 +23,6 @@ link_directories(${X11_LIBRARIES})
+ find_package(PkgConfig REQUIRED)
+ pkg_check_modules(deps REQUIRED IMPORTED_TARGET glib-2.0)
+ 
+-find_package( OpenCV REQUIRED )
+-include_directories( ${OpenCV_INCLUDE_DIRS} )
+-
+ find_package(OpenSSL REQUIRED)
+ 
+ include_directories(${ZOOM_SDK}/h)
+@@ -47,18 +44,17 @@ add_executable(zoomsdk src/main.cpp
+         src/events/MeetingReminderEvent.h
+         src/events/MeetingRecordingCtrlEvent.cpp
+         src/events/MeetingRecordingCtrlEvent.h
++        src/events/MeetingChatEvent.h
++        src/events/MeetingParticipantsCtrlEvent.h
+         src/raw_record/ZoomSDKAudioRawDataDelegate.cpp
+         src/raw_record/ZoomSDKAudioRawDataDelegate.h
+-        src/raw_record/ZoomSDKRendererDelegate.cpp
+-        src/raw_record/ZoomSDKRendererDelegate.h
+-        src/raw_send/ZoomSDKVideoSource.h
+-        src/raw_send/ZoomSDKVideoSource.cpp
++        src/raw_send/BwatPresenceSource.h
+         src/util/SocketServer.h
+         src/util/SocketServer.cpp
+ )
+ 
+ target_include_directories(zoomsdk PRIVATE ${JWT_CPP_INCLUDE_DIRS} ${PICOJSON_INCLUDE_DIRS})
+-target_link_libraries(zoomsdk PRIVATE meetingsdk OpenSSL::SSL OpenSSL::Crypto CLI11::CLI11 PkgConfig::deps ${OpenCV_LIBS} ${X11_LIBRARIES})
++target_link_libraries(zoomsdk PRIVATE meetingsdk OpenSSL::SSL OpenSSL::Crypto CLI11::CLI11 PkgConfig::deps ${X11_LIBRARIES})
+ 
+ 
+ 
+diff --git a/src/Config.cpp b/src/Config.cpp
+index 635d8de..b8de90a 100644
+--- a/src/Config.cpp
++++ b/src/Config.cpp
+@@ -19,8 +19,13 @@ Config::Config() :
+     m_app.add_option("-b, --on-behalf", m_onBehalfToken, "Join the meeting on behalf of a user using a token");
+ 
+ 
+-    m_app.add_option("--client-id", m_clientId, "Zoom Meeting Client ID")->required();
+-    m_app.add_option("--client-secret", m_clientSecret, "Zoom Meeting Client Secret")->required();
++    m_app.add_option("--client-id", m_clientId, "Zoom Meeting Client ID");
++    m_app.add_option("--client-secret", m_clientSecret, "Zoom Meeting Client Secret");
++    // bwat: a Meeting SDK JWT minted elsewhere, used instead of signing one here
++    m_app.add_option("--jwt", m_jwt, "Pre-minted Meeting SDK JWT");
++    m_app.add_flag("--join-muted", m_joinMuted, "Join with the microphone muted");
++    m_app.add_flag("--video-off", m_videoOff, "Join with the camera off");
++    m_app.add_option("--presence-frame", m_presenceFrame, "A 1280x720 I420 frame shown as the video");
+ 
+     m_app.add_flag("-s, --start", m_isMeetingStart, "Start a Zoom Meeting");
+ 
+@@ -139,6 +144,22 @@ bool Config::isMeetingStart() const {
+     return m_isMeetingStart;
+ }
+ 
++const string& Config::jwt() const {
++    return m_jwt;
++}
++
++bool Config::joinMuted() const {
++    return m_joinMuted;
++}
++
++bool Config::videoOff() const {
++    return m_videoOff;
++}
++
++const string& Config::presenceFrame() const {
++    return m_presenceFrame;
++}
++
+ const string& Config::joinToken() const {
+     return m_joinToken;
+ }
+diff --git a/src/Config.h b/src/Config.h
+index 6693a09..b4c14d2 100644
+--- a/src/Config.h
++++ b/src/Config.h
+@@ -41,6 +41,10 @@ class Config {
+ 
+     string m_clientId;
+     string m_clientSecret;
++    string m_jwt;
++    bool m_joinMuted = false;
++    bool m_videoOff = false;
++    string m_presenceFrame;
+ 
+     string m_zoomHost = "https://zoom.us";
+     string m_joinToken;
+@@ -66,6 +70,10 @@ public:
+ 
+     const string& clientId() const;
+     const string& clientSecret() const;
++    const string& jwt() const;
++    bool joinMuted() const;
++    bool videoOff() const;
++    const string& presenceFrame() const;
+     const string& zak() const;
+ 
+     const string& zoomHost() const;
+diff --git a/src/Zoom.cpp b/src/Zoom.cpp
+index 7e0faf7..61d2ec7 100644
+--- a/src/Zoom.cpp
++++ b/src/Zoom.cpp
+@@ -1,5 +1,71 @@
+ #include "Zoom.h"
+ 
++#include <atomic>
++#include <thread>
++
++#include <glib.h>
++#include <picojson/picojson.h>
++
++#include "events/MeetingChatEvent.h"
++#include "events/MeetingParticipantsCtrlEvent.h"
++
++// bwat: two triggers start raw recording (a privilege granted at join, and the
++// recording disclaimer accepted). Both arm one retry on the glib loop; a second
++// arm while one is pending does nothing.
++static std::atomic<bool> g_recordingRetryArmed{false};
++
++static gboolean retryStartRecording(gpointer) {
++    static int attempts = 0;
++    auto& zoom = Zoom::getInstance();
++    if (zoom.canStartRawRecording()) {
++        auto err = zoom.startRawRecording();
++        if (err != SDKERR_SUCCESS)
++            Log::error("start raw recording failed (SDKError " + std::to_string((int) err) + ")");
++        attempts = 0;
++        g_recordingRetryArmed = false;
++        return FALSE;
++    }
++    if (++attempts >= 20) {
++        Log::error("start raw recording: gave up waiting for CanStartRawRecording");
++        attempts = 0;
++        g_recordingRetryArmed = false;
++        return FALSE;
++    }
++    return TRUE;
++}
++
++// bwat: the bot's chat posts come in on stdin as `BWAT_CHAT_SEND {"text":...}` lines
++// (bot/container/bridge.py). A reader thread takes them; each send runs on the glib loop,
++// since the SDK drops a chat sent from another thread while still reporting success. At
++// default priority, not idle: the presence frame keeps the loop from ever going idle.
++// Zoom's answer goes back as a chat_sent status line (18 is its per-sender rate limit).
++static std::atomic<bool> g_chatReaderStarted{false};
++
++static gboolean deliverChat(gpointer data) {
++    auto* text = static_cast<std::string*>(data);
++    auto err = Zoom::getInstance().sendChat(*text);
++    printf("BWAT_MEETING_STATUS_JSON {\"event\":\"chat_sent\",\"code\":%d}\n", static_cast<int>(err));
++    fflush(stdout);
++    delete text;
++    return FALSE;
++}
++
++static void readChatCommands() {
++    const std::string prefix = "BWAT_CHAT_SEND ";
++    std::string line;
++    while (std::getline(std::cin, line)) {
++        if (line.rfind(prefix, 0) != 0) continue;
++        picojson::value command;
++        if (!picojson::parse(command, line.substr(prefix.size())).empty() || !command.is<picojson::object>())
++            continue;
++        auto& fields = command.get<picojson::object>();
++        auto text = fields.find("text");
++        if (text == fields.end() || !text->second.is<std::string>()) continue;
++        g_idle_add_full(G_PRIORITY_DEFAULT, deliverChat,
++                        new std::string(text->second.get<std::string>()), nullptr);
++    }
++}
++
+ SDKError Zoom::config(int ac, char** av) {
+     auto status = m_config.read(ac, av);
+     if (status) {
+@@ -49,27 +115,16 @@ SDKError Zoom::createServices() {
+ }
+ 
+ SDKError Zoom::auth() {
+-    SDKError err{SDKERR_UNINITIALIZE};
+-
+-    auto id = m_config.clientId();
+-    auto secret = m_config.clientSecret();
+-
+-    if (id.empty()) {
+-        Log::error("Client ID cannot be blank");
+-        return err;
+-    }
+-
+-
+-    if (secret.empty()) {
+-        Log::error("Client Secret cannot be blank");
+-        return err;
++    // bwat: the backend mints the SDK JWT, so the bot never holds the client secret.
++    if (m_config.jwt().empty()) {
++        Log::error("a jwt is required");
++        return SDKERR_UNINITIALIZE;
+     }
++    m_jwt = m_config.jwt();
+ 
+-    err = m_authService->SetEvent(new AuthServiceEvent(onAuth));
++    auto err = m_authService->SetEvent(new AuthServiceEvent(onAuth));
+     if (hasError(err)) return err;
+ 
+-    generateJWT(m_config.clientId(), m_config.clientSecret());
+-
+     AuthContext ctx;
+     ctx.jwt_token =  m_jwt.c_str();
+ 
+@@ -128,7 +183,7 @@ SDKError Zoom::join() {
+     param.vanityID = nullptr;
+     param.customer_key = nullptr;
+     param.webinarToken = nullptr;
+-    param.isVideoOff = false;
++    param.isVideoOff = m_config.videoOff();
+     param.isAudioOff = false;
+ 
+     if (!m_config.zak().empty()) {
+@@ -151,6 +206,23 @@ SDKError Zoom::join() {
+         if (!audioSettings) return SDKERR_INTERNAL_ERROR;
+ 
+         audioSettings->EnableAutoJoinAudio(true);
++        // bwat: join muted (D166), set before the audio connects. The bot never
++        // speaks, so this only changes what others see.
++        audioSettings->EnableAlwaysMuteMicWhenJoinVoip(m_config.joinMuted());
++    }
++
++    // bwat: the presence frame (D195) is the bot's only video; camera off wins. The
++    // source must be set before the join. Without it the bot joins with no picture.
++    if (!m_config.presenceFrame().empty() && !m_config.videoOff()) {
++        Log::info(string("raw data license: ") + (HasRawdataLicense() ? "yes" : "no"));
++        auto* presence = new BwatPresenceSource(m_config.presenceFrame());
++        auto* helper = GetRawdataVideoSourceHelper();
++        if (!presence->ok())
++            Log::error("presence frame is not one 1280x720 I420 frame");
++        else if (helper && !hasError(bwatSetVideoSource(helper, presence, 0), "set presence frame"))
++            m_presence = presence;
++        if (!m_presence)
++            delete presence;
+     }
+ 
+     return m_meetingService->Join(joinParam);
+@@ -198,14 +270,60 @@ SDKError Zoom::clean() {
+     if (m_audioHelper)
+         m_audioHelper->unSubscribe();
+ 
+-    if (m_videoHelper)
+-        m_videoHelper->unSubscribe();
+-
+-    delete m_renderDelegate;
+     return CleanUPSDK();
+ }
+ 
++void Zoom::startChatReader() {
++    if (!g_chatReaderStarted.exchange(true))
++        std::thread(readChatCommands).detach();
++}
++
++SDKError Zoom::sendChat(const string& text) {
++    auto* chatCtl = m_meetingService ? m_meetingService->GetMeetingChatController() : nullptr;
++    auto* builder = chatCtl ? chatCtl->GetChatMessageBuilder() : nullptr;
++    if (!builder) return SDKERR_UNINITIALIZE;
++    auto* msg = builder->SetContent(text.c_str())
++                       ->SetReceiver(0)
++                       ->SetMessageType(SDKChatMessageType_To_All)
++                       ->Build();
++    // One builder per controller, reused: cleared after every message.
++    if (!msg) {
++        builder->Clear();
++        return SDKERR_INVALID_PARAMETER;
++    }
++    auto err = chatCtl->SendChatMsgTo(msg);
++    builder->Clear();
++    return err;
++}
++
++void Zoom::armRecordingStart() {
++    if (g_recordingRetryArmed.exchange(true)) return;
++    g_timeout_add(500, retryStartRecording, nullptr);
++}
++
++bool Zoom::canStartRawRecording() {
++    if (!m_meetingService) return false;
++    auto* recCtl = m_meetingService->GetMeetingRecordingController();
++    return recCtl && recCtl->CanStartRawRecording() == SDKERR_SUCCESS;
++}
++
++void Zoom::emitMeetingId() {
++    auto* info = m_meetingService ? m_meetingService->GetMeetingInfo() : nullptr;
++    const zchar_t* id = info ? info->GetMeetingID() : nullptr;
++    const zchar_t* topic = info ? info->GetMeetingTopic() : nullptr;
++    picojson::object obj;
++    obj["event"] = picojson::value(std::string("meeting_id"));
++    obj["meeting_uuid"] = picojson::value(std::string(id ? id : ""));
++    obj["meeting_topic"] = picojson::value(std::string(topic ? topic : ""));
++    printf("BWAT_MEETING_STATUS_JSON %s\n", picojson::value(obj).serialize().c_str());
++    fflush(stdout);
++}
++
+ SDKError Zoom::startRawRecording() {
++    // Driven by a privilege change and by the retry above, so a second call
++    // after a successful start does nothing.
++    if (m_audioSource) return SDKERR_SUCCESS;
++
+     if (m_meetingService->GetMeetingStatus() != ZOOM_SDK_NAMESPACE::MEETING_STATUS_INMEETING) {
+         Log::error("You must be in a meeting to start raw recording");
+         return SDKERR_WRONG_USAGE;
+@@ -221,53 +339,6 @@ SDKError Zoom::startRawRecording() {
+     if (hasError(err, "start raw recording"))
+         return err;
+ 
+-    if (m_config.useRawVideo()) {
+-        if (!m_renderDelegate) {
+-            m_renderDelegate = new ZoomSDKRendererDelegate();
+-            m_videoSource = new ZoomSDKVideoSource();
+-        }
+-
+-        err = createRenderer(&m_videoHelper, m_renderDelegate);
+-        if (hasError(err, "create raw video renderer"))
+-            return err;
+-
+-        m_renderDelegate->setDir(m_config.videoDir());
+-        m_renderDelegate->setFilename(m_config.videoFile());
+-        
+-        auto participantCtl = m_meetingService->GetMeetingParticipantsController();
+-        auto uid = participantCtl->GetParticipantsList()->GetItem(0);
+-
+-        m_videoHelper->setRawDataResolution(ZoomSDKResolution_720P);
+-        err = m_videoHelper->subscribe(uid, RAW_DATA_TYPE_VIDEO);
+-        if (hasError(err, "subscribe to raw video"))
+-            return err;
+-
+-        Log::info("writing video raw data to " + m_renderDelegate->dir() + "/" + m_renderDelegate->filename());
+-
+-  /*      auto* videoSourceHelper = GetRawdataVideoSourceHelper();
+-        if (!videoSourceHelper) {
+-            Log::error("Initializing Video Source Helper");
+-            return SDKERR_UNINITIALIZE;
+-        }
+-
+-        err = videoSourceHelper->setExternalVideoSource(m_videoSource);
+-        if (hasError(err, "set video source"))
+-            return err;
+-
+-        auto* videoSettings = m_settingService->GetVideoSettings();
+-        videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
+-
+-       auto* sender = m_videoSource->getSender();
+-        SDKError e;
+-        do {
+-            Log::info("attempting unmute");
+-            auto* videoCtl = m_meetingService->GetMeetingVideoController();
+-            e = videoCtl->UnmuteVideo();
+-            if (hasError(e, "unmute")) sleep(1);
+-        } while (hasError(e));*/
+-
+-    }
+-
+     if (m_config.useRawAudio()) {
+         auto* audioController = m_meetingService->GetMeetingAudioController();
+         if (audioController) {
+@@ -281,18 +352,33 @@ SDKError Zoom::startRawRecording() {
+         if (!m_audioHelper)
+             return SDKERR_UNINITIALIZE;
+ 
+-        if (!m_audioSource) {
+-            auto mixedAudio = !m_config.separateParticipantAudio();
+-            auto transcribe = m_config.transcribe();
++        auto separate = m_config.separateParticipantAudio();
++        auto transcribe = m_config.transcribe();
++        // bwat: when transcribing, each participant's stream comes in addition to the
++        // mixed one, never instead of it.
++        auto mixedAudio = transcribe || !separate;
+ 
+-            m_audioSource = new ZoomSDKAudioRawDataDelegate(mixedAudio, transcribe);
+-            m_audioSource->setDir(m_config.audioDir());
+-            m_audioSource->setFilename(m_config.audioFile());
+-        }
++        m_audioSource = new ZoomSDKAudioRawDataDelegate(mixedAudio, transcribe, separate);
++        m_audioSource->setDir(m_config.audioDir());
++        m_audioSource->setFilename(m_config.audioFile());
+ 
+         err = m_audioHelper->subscribe(m_audioSource);
+-        if (hasError(err, "subscribe to raw audio"))
++        if (hasError(err, "subscribe to raw audio")) {
++            delete m_audioSource;  // so a later grant really subscribes
++            m_audioSource = nullptr;
+             return err;
++        }
++
++        auto* partCtl = m_meetingService->GetMeetingParticipantsController();
++        // Who is in the room, for naming each participant's stream.
++        if (separate && partCtl
++            && !hasError(partCtl->SetEvent(new MeetingParticipantsCtrlEvent(partCtl)),
++                         "set participants event"))
++            emitParticipantRoster(partCtl);
++        // The meeting chat joins the transcript.
++        auto* chatCtl = m_meetingService->GetMeetingChatController();
++        if (chatCtl && partCtl)
++            hasError(chatCtl->SetEvent(new MeetingChatEvent(partCtl)), "set chat event");
+ 
+         Log::info("writing audio raw data to " + m_audioSource->dir() + "/" + m_audioSource->filename());
+     }
+diff --git a/src/Zoom.h b/src/Zoom.h
+index aaacac9..0493e61 100644
+--- a/src/Zoom.h
++++ b/src/Zoom.h
+@@ -1,6 +1,7 @@
+ #ifndef MEETING_SDK_LINUX_SAMPLE_ZOOM_H
+ #define MEETING_SDK_LINUX_SAMPLE_ZOOM_H
+ 
++#include <cstdio>
+ #include <iostream>
+ #include <chrono>
+ #include <string>
+@@ -15,7 +16,6 @@
+ 
+ #include "zoom_sdk.h"
+ #include "rawdata/zoom_rawdata_api.h"
+-#include "rawdata/rawdata_renderer_interface.h"
+ 
+ #include "meeting_service_components/meeting_audio_interface.h"
+ #include "meeting_service_components/meeting_participants_ctrl_interface.h"
+@@ -27,10 +27,8 @@
+ #include "events/MeetingReminderEvent.h"
+ #include "events/MeetingRecordingCtrlEvent.h"
+ 
+-#include "raw_record/ZoomSDKRendererDelegate.h"
+ #include "raw_record/ZoomSDKAudioRawDataDelegate.h"
+-
+-#include "raw_send/ZoomSDKVideoSource.h"
++#include "raw_send/BwatPresenceSource.h"
+ 
+ using namespace std;
+ using namespace jwt;
+@@ -53,13 +51,9 @@ class Zoom : public Singleton<Zoom> {
+     ISettingService* m_settingService;
+     IAuthService* m_authService;
+ 
+-    IZoomSDKRenderer* m_videoHelper;
+-    ZoomSDKRendererDelegate* m_renderDelegate;
+-
+-    IZoomSDKAudioRawDataHelper* m_audioHelper;
+-    ZoomSDKAudioRawDataDelegate* m_audioSource;
+-
+-    ZoomSDKVideoSource* m_videoSource;
++    IZoomSDKAudioRawDataHelper* m_audioHelper = nullptr;
++    ZoomSDKAudioRawDataDelegate* m_audioSource = nullptr;
++    BwatPresenceSource* m_presence = nullptr;
+ 
+     SDKError createServices();
+     void generateJWT(const string& key, const string& secret);
+@@ -71,7 +65,14 @@ class Zoom : public Singleton<Zoom> {
+         auto e = isMeetingStart() ? start() : join();
+         string action = isMeetingStart() ? "start" : "join";
+         
+-        if(hasError(e, action + " a meeting")) exit(e);
++        if(hasError(e, action + " a meeting")) {
++            // bwat: name the failure before exiting; stdout into bridge.py is
++            // fully buffered, so every tagged line is flushed.
++            printf("BWAT_MEETING_STATUS_JSON {\"event\":\"join_call\",\"code\":%d}\n",
++                   static_cast<int>(e));
++            fflush(stdout);
++            exit(e);
++        }
+     };
+ 
+     /**
+@@ -79,7 +80,21 @@ class Zoom : public Singleton<Zoom> {
+     */
+     function<void()> onJoin = [&]() {
+         auto* reminderController = m_meetingService->GetMeetingReminderController();
+-        reminderController->SetEvent(new MeetingReminderEvent());
++        reminderController->SetEvent(new MeetingReminderEvent(
++            [] { Zoom::getInstance().armRecordingStart(); }));
++        emitMeetingId();
++        // bwat: the bot's chat posts, whether or not recording is ever granted.
++        startChatReader();
++
++        // bwat: show the presence frame (D195), set as the video source before the join.
++        if (m_presence) {
++            auto* videoSettings = m_settingService->GetVideoSettings();
++            if (videoSettings)
++                videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
++            auto* videoCtl = m_meetingService->GetMeetingVideoController();
++            if (videoCtl)
++                hasError(videoCtl->UnmuteVideo(), "show the presence frame");
++        }
+ 
+         if (!m_config.useRawRecording())  
+             return;
+@@ -101,8 +116,23 @@ class Zoom : public Singleton<Zoom> {
+         SDKError err = recCtl->CanStartRawRecording();
+ 
+         if (hasError(err)) {
++            // Some hosts' clients cannot grant it at all: say so rather than
++            // wait for an answer that never comes. The request is still sent.
++            SDKError support = recCtl->IsSupportRequestLocalRecordingPrivilege();
++            if (support != SDKERR_SUCCESS) {
++                printf("BWAT_MEETING_STATUS_JSON {\"event\":\"recording\",\"supported\":false,\"code\":%d}\n",
++                       static_cast<int>(support));
++                fflush(stdout);
++            }
+             Log::info("requesting local recording privilege");
+             recCtl->RequestLocalRecordingPrivilege();
++        } else {
++            // Granted at join (a local recording join token): no request is sent,
++            // so no privilege change will fire. Start on the glib loop, which also
++            // waits out a recording disclaimer that arrives after this point.
++            printf("BWAT_MEETING_STATUS_JSON {\"event\":\"recording\",\"privilege\":true,\"at_join\":true}\n");
++            fflush(stdout);
++            Zoom::getInstance().armRecordingStart();
+         }
+     };
+ 
+@@ -118,6 +148,11 @@ public:
+ 
+     SDKError clean();
+ 
++    void armRecordingStart();     // start raw recording on the glib loop, retrying
++    bool canStartRawRecording();
++    void emitMeetingId();         // the meeting's UUID, once in the meeting
++    void startChatReader();       // the bot's chat posts, read from stdin, once in the meeting
++    SDKError sendChat(const string& text);  // to everyone; on the glib loop only
+     SDKError startRawRecording();
+     SDKError stopRawRecording();
+ 
+diff --git a/src/events/AuthServiceEvent.cpp b/src/events/AuthServiceEvent.cpp
+index 4e2beb6..0cf8895 100644
+--- a/src/events/AuthServiceEvent.cpp
++++ b/src/events/AuthServiceEvent.cpp
+@@ -1,5 +1,7 @@
+ #include "AuthServiceEvent.h"
+ 
++#include <cstdio>
++
+ void AuthServiceEvent::onAuthenticationReturn(AuthResult result) {
+     if (m_onAuthenticationReturn) {
+         m_onAuthenticationReturn(result);
+@@ -30,6 +32,10 @@ void AuthServiceEvent::onAuthenticationReturn(AuthResult result) {
+ 
+     if (result != AUTHRET_SUCCESS) {
+         Log::error(message.str());
++        // bwat: name the failure before dying; abort() does not flush stdio.
++        printf("BWAT_MEETING_STATUS_JSON {\"event\":\"auth\",\"code\":%d}\n",
++               static_cast<int>(result));
++        fflush(stdout);
+         abort();
+     }
+ 
+diff --git a/src/events/MeetingChatEvent.h b/src/events/MeetingChatEvent.h
+new file mode 100644
+index 0000000..c88c348
+--- /dev/null
++++ b/src/events/MeetingChatEvent.h
+@@ -0,0 +1,55 @@
++// bwat: the meeting chat, so it joins the transcript. One stdout line per message:
++//   BWAT_CHAT_JSON {"from":"Ada","text":"ship it friday"}
++// The bot's own messages are skipped by user id, which survives a rename.
++#pragma once
++
++#include <cstdio>
++#include <string>
++#include <type_traits>
++
++#include <picojson/picojson.h>
++
++#include "meeting_service_components/meeting_chat_interface.h"
++#include "meeting_service_components/meeting_participants_ctrl_interface.h"
++
++USING_ZOOM_SDK_NAMESPACE
++
++class MeetingChatEvent : public IMeetingChatCtrlEvent {
++public:
++    explicit MeetingChatEvent(IMeetingParticipantsController* participantCtl)
++        : m_participantCtl(participantCtl) {}
++
++    void onChatMsgNotification(IChatMsgInfo* chatMsg, const zchar_t*) override {
++        if (!chatMsg) return;
++        const zchar_t* from = chatMsg->GetSenderDisplayName();
++        const zchar_t* text = chatMsg->GetContent();
++        if (!text || !*text || isSelf(chatMsg)) return;
++        if (!chatMsg->IsChatToAll()) return;  // a private message to the bot stays private
++        picojson::object obj;
++        obj["from"] = picojson::value(from ? std::string(from) : std::string());
++        obj["text"] = picojson::value(std::string(text));
++        printf("BWAT_CHAT_JSON %s\n", picojson::value(obj).serialize().c_str());
++        fflush(stdout);
++    }
++
++    // The rest of the interface, all pure virtual in SDK 7.0.2.5001.
++    void onChatStatusChangedNotification(ChatStatus*) override {}
++    void onChatMsgDeleteNotification(const zchar_t*, SDKChatMessageDeleteType) override {}
++    void onChatMessageEditNotification(IChatMsgInfo*) override {}
++    void onShareMeetingChatStatusChanged(bool) override {}
++    void onFileSendStart(ISDKFileSender*) override {}
++    void onFileReceived(ISDKFileReceiver*) override {}
++    void onFileTransferProgress(SDKFileTransferInfo*) override {}
++
++private:
++    bool isSelf(IChatMsgInfo* chatMsg) const {
++        IUserInfo* self = m_participantCtl->GetMySelfUser();
++        return self && chatMsg->GetSenderUserId() == self->GetUserID();
++    }
++
++    IMeetingParticipantsController* m_participantCtl;
++};
++
++static_assert(!std::is_abstract<MeetingChatEvent>::value,
++              "MeetingChatEvent is abstract: the Zoom SDK declares an IMeetingChatCtrlEvent "
++              "member this class does not define");
+diff --git a/src/events/MeetingParticipantsCtrlEvent.h b/src/events/MeetingParticipantsCtrlEvent.h
+new file mode 100644
+index 0000000..04d23ee
+--- /dev/null
++++ b/src/events/MeetingParticipantsCtrlEvent.h
+@@ -0,0 +1,95 @@
++// bwat: who is in the meeting, so each participant's audio stream can be named.
++// One stdout line per arrival or departure:
++//   BWAT_PARTICIPANT_JSON {"event":"join","id":"16778240","name":"Ada","is_self":false}
++// The id is the user id the per-participant audio frames carry as their node, sent as a
++// string so no JSON number round trip can change it.
++#pragma once
++
++#include <cstdio>
++#include <string>
++#include <type_traits>
++
++#include <picojson/picojson.h>
++
++#include "meeting_service_components/meeting_participants_ctrl_interface.h"
++
++USING_ZOOM_SDK_NAMESPACE
++
++// `user` may be null on a leave (the SDK has dropped it by then): the name is best
++// effort, and the id still identifies who left.
++inline void emitParticipant(const char* event, unsigned int uid, IUserInfo* user) {
++    const zchar_t* name = user ? user->GetUserName() : nullptr;
++    picojson::object obj;
++    obj["event"] = picojson::value(std::string(event));
++    obj["id"] = picojson::value(std::to_string(uid));
++    obj["name"] = picojson::value(name ? std::string(name) : std::string());
++    obj["is_self"] = picojson::value(user ? user->IsMySelf() : false);
++    printf("BWAT_PARTICIPANT_JSON %s\n", picojson::value(obj).serialize().c_str());
++    fflush(stdout);
++}
++
++// Everyone already in the room: onUserJoin fires only for later arrivals.
++inline void emitParticipantRoster(IMeetingParticipantsController* participantCtl) {
++    IList<unsigned int>* users = participantCtl ? participantCtl->GetParticipantsList() : nullptr;
++    if (!users) return;
++    for (int i = 0; i < users->GetCount(); ++i) {
++        const unsigned int uid = users->GetItem(i);
++        emitParticipant("join", uid, participantCtl->GetUserByUserID(uid));
++    }
++}
++
++class MeetingParticipantsCtrlEvent : public IMeetingParticipantsCtrlEvent {
++public:
++    explicit MeetingParticipantsCtrlEvent(IMeetingParticipantsController* participantCtl)
++        : m_participantCtl(participantCtl) {}
++
++    void onUserJoin(IList<unsigned int>* lstUserID, const zchar_t*) override {
++        if (!lstUserID) return;
++        for (int i = 0; i < lstUserID->GetCount(); ++i) {
++            const unsigned int uid = lstUserID->GetItem(i);
++            emitParticipant("join", uid, m_participantCtl->GetUserByUserID(uid));
++        }
++    }
++
++    void onUserLeft(IList<unsigned int>* lstUserID, const zchar_t*) override {
++        if (!lstUserID) return;
++        for (int i = 0; i < lstUserID->GetCount(); ++i) {
++            const unsigned int uid = lstUserID->GetItem(i);
++            emitParticipant("leave", uid, m_participantCtl->GetUserByUserID(uid));
++        }
++    }
++
++    // The rest of the interface, all pure virtual in SDK 7.0.2.5001.
++    void onHostChangeNotification(unsigned int) override {}
++    void onLowOrRaiseHandStatusChanged(bool, unsigned int) override {}
++    void onUserNamesChanged(IList<unsigned int>*) override {}
++    void onCoHostChangeNotification(unsigned int, bool) override {}
++    void onInvalidReclaimHostkey() override {}
++    void onAllHandsLowered() override {}
++    void onLocalRecordingStatusChanged(unsigned int, RecordingStatus) override {}
++    void onAllowParticipantsRenameNotification(bool) override {}
++    void onAllowParticipantsUnmuteSelfNotification(bool) override {}
++    void onAllowParticipantsStartVideoNotification(bool) override {}
++    void onAllowParticipantsShareWhiteBoardNotification(bool) override {}
++    void onRequestLocalRecordingPrivilegeChanged(LocalRecordingRequestPrivilegeStatus) override {}
++    void onAllowParticipantsRequestCloudRecording(bool) override {}
++    void onInMeetingUserAvatarPathUpdated(unsigned int) override {}
++    void onParticipantProfilePictureStatusChange(bool) override {}
++    void onFocusModeStateChanged(bool) override {}
++    void onFocusModeShareTypeChanged(FocusModeShareType) override {}
++    void onBotAuthorizerRelationChanged(unsigned int) override {}
++    void onVirtualNameTagStatusChanged(bool, unsigned int) override {}
++    void onVirtualNameTagRosterInfoUpdated(unsigned int) override {}
++    // No override on these two: with this SDK's headers they do not override (the build
++    // says so), and the class must still define them where they are pure virtual.
++    void onCreateCompanionRelation(unsigned int, unsigned int) {}
++    void onRemoveCompanionRelation(unsigned int) {}
++    void onGrantCoOwnerPrivilegeChanged(bool) override {}
++
++private:
++    IMeetingParticipantsController* m_participantCtl;
++};
++
++static_assert(!std::is_abstract<MeetingParticipantsCtrlEvent>::value,
++              "MeetingParticipantsCtrlEvent is abstract: the Zoom SDK declares an "
++              "IMeetingParticipantsCtrlEvent member this class does not define");
+diff --git a/src/events/MeetingRecordingCtrlEvent.cpp b/src/events/MeetingRecordingCtrlEvent.cpp
+index f05dd33..93f84d1 100644
+--- a/src/events/MeetingRecordingCtrlEvent.cpp
++++ b/src/events/MeetingRecordingCtrlEvent.cpp
+@@ -1,6 +1,11 @@
+ #include "MeetingRecordingCtrlEvent.h"
+ 
++#include <cstdio>
++
+ void MeetingRecordingCtrlEvent::onRecordPrivilegeChanged(bool bCanRec) {
++    printf("BWAT_MEETING_STATUS_JSON {\"event\":\"recording\",\"privilege\":%s}\n",
++           bCanRec ? "true" : "false");
++    fflush(stdout);
+     if (m_onRecordingPrivilegeChanged)
+         m_onRecordingPrivilegeChanged(bCanRec);
+ }
+diff --git a/src/events/MeetingRecordingCtrlEvent.h b/src/events/MeetingRecordingCtrlEvent.h
+index fcd9a95..9ea66dd 100644
+--- a/src/events/MeetingRecordingCtrlEvent.h
++++ b/src/events/MeetingRecordingCtrlEvent.h
+@@ -2,6 +2,7 @@
+ #ifndef MEETING_SDK_LINUX_SAMPLE_MEETINGRECORDCTRLEVENT_H
+ #define MEETING_SDK_LINUX_SAMPLE_MEETINGRECORDCTRLEVENT_H
+ 
++#include <cstdio>
+ #include <iostream>
+ #include <functional>
+ #include "meeting_service_components/meeting_recording_interface.h"
+@@ -39,7 +40,12 @@ public:
+      * fires when the local recording privilege changes
+      * @param status status of the local recording privliege request
+      */
+-    void onLocalRecordingPrivilegeRequestStatus(RequestLocalRecordingStatus status) override  {};
++    void onLocalRecordingPrivilegeRequestStatus(RequestLocalRecordingStatus status) override {
++        // bwat: the host's answer to the request (0 granted, 1 denied, 2 timed out).
++        printf("BWAT_MEETING_STATUS_JSON {\"event\":\"recording\",\"request\":%d}\n",
++               static_cast<int>(status));
++        fflush(stdout);
++    };
+ 
+     /**
+      * Fires when a user requests local recording privilege
+diff --git a/src/events/MeetingReminderEvent.cpp b/src/events/MeetingReminderEvent.cpp
+index 9ccba56..29f30a2 100644
+--- a/src/events/MeetingReminderEvent.cpp
++++ b/src/events/MeetingReminderEvent.cpp
+@@ -1,14 +1,2 @@
++// Header-only: see MeetingReminderEvent.h.
+ #include "MeetingReminderEvent.h"
+-
+-void MeetingReminderEvent::onReminderNotify(IMeetingReminderContent* content, IMeetingReminderHandler* handle) {
+-    if (content) {
+-        cout << "Reminder Notification Received" << endl;
+-        cout << "Type: " << content->GetType() << endl;
+-        cout << "Title: " << content->GetTitle() << endl;
+-        cout << "Content: " << content->GetContent() << endl;
+-        cout << "Is Blocking?: " << content->IsBlocking() << endl;
+-    }
+-
+-    if (handle)
+-        handle->Accept();
+-}
+\ No newline at end of file
+diff --git a/src/events/MeetingReminderEvent.h b/src/events/MeetingReminderEvent.h
+index e51868a..2992586 100644
+--- a/src/events/MeetingReminderEvent.h
++++ b/src/events/MeetingReminderEvent.h
+@@ -1,31 +1,39 @@
++// bwat: accept every meeting reminder. A recorded meeting shows a blocking
++// "this meeting is being recorded" disclaimer after onJoin has already asked for
++// recording, and the SDK refuses raw recording until it is accepted; so a
++// blocking one also re-drives the recording start.
++#pragma once
+ 
+-#ifndef MEETING_SDK_LINUX_SAMPLE_MEETINGREMINDEREVENT_H
+-#define MEETING_SDK_LINUX_SAMPLE_MEETINGREMINDEREVENT_H
++#include <functional>
++#include <string>
+ 
+-
+-#include <iostream>
+ #include "meeting_service_components/meeting_reminder_ctrl_interface.h"
++#include "../util/Log.h"
+ 
+-using namespace std;
+-using namespace ZOOMSDK;
++USING_ZOOM_SDK_NAMESPACE
+ 
+-class MeetingReminderEvent : public IMeetingReminderEvent
+-{
++class MeetingReminderEvent : public IMeetingReminderEvent {
+ public:
+-    /**
+-     * Fires when the reminder dialog is shown
+-     * @param content content of the reminder
+-     * @param handle reminder handler for the reminder type
+-     */
+-    void onReminderNotify(IMeetingReminderContent* content, IMeetingReminderHandler* handle) override;
+-
+-    /**
+-     * Callback event of the enable reminder dialog show.
+-     * @param content The detail content in the reminder dialog. For more details, see IMeetingEnableReminderHandler enum.
+-     * @param handle A pointer to the IMeetingReminderHandler. For more details, see IMeetingEnableReminderHandler.
+-    */
+-    void onEnableReminderNotify(IMeetingReminderContent* content, IMeetingEnableReminderHandler* handle) override {};
++    explicit MeetingReminderEvent(std::function<void()> onBlockingAccepted = nullptr)
++        : m_onBlockingAccepted(std::move(onBlockingAccepted)) {}
++
++    void onReminderNotify(IMeetingReminderContent* content,
++                          IMeetingReminderHandler* handle) override {
++        const bool blocking = content && content->IsBlocking();
++        if (content)
++            Log::info("reminder type=" + std::to_string((int) content->GetType())
++                      + " blocking=" + (blocking ? "1" : "0"));
++        if (handle) handle->Accept();
++        if (blocking && m_onBlockingAccepted) m_onBlockingAccepted();
++    }
++
++    void onEnableReminderNotify(IMeetingReminderContent*,
++                                IMeetingEnableReminderHandler* handle) override {
++        // Requests to turn on extra AI features: never wanted, and a pending one
++        // could block, so dismiss it.
++        if (handle) handle->Ignore();
++    }
++
++private:
++    std::function<void()> m_onBlockingAccepted;
+ };
+-
+-
+-#endif //MEETING_SDK_LINUX_SAMPLE_MEETINGREMINDEREVENT_H
+diff --git a/src/events/MeetingServiceEvent.cpp b/src/events/MeetingServiceEvent.cpp
+index 4b07de4..0780f27 100644
+--- a/src/events/MeetingServiceEvent.cpp
++++ b/src/events/MeetingServiceEvent.cpp
+@@ -1,6 +1,12 @@
+ #include "MeetingServiceEvent.h"
+ 
++#include <cstdio>
++
+ void MeetingServiceEvent::onMeetingStatusChanged(MeetingStatus status, int iResult) {
++    // bwat: every status as a raw fact; the bot decides what it means.
++    printf("BWAT_MEETING_STATUS_JSON {\"event\":\"meeting\",\"status\":%d,\"code\":%d}\n",
++           static_cast<int>(status), iResult);
++    fflush(stdout);
+     if (m_onMeetingStatusChanged) {
+         m_onMeetingStatusChanged(status, iResult);
+         return;
+diff --git a/src/main.cpp b/src/main.cpp
+index b5e2a11..7eb7230 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -1,5 +1,6 @@
+ #include <csignal>
+ #include <glib.h>
++#include <glib-unix.h>
+ #include "Config.h"
+ #include "Zoom.h"
+ 
+@@ -16,12 +17,14 @@ void onExit() {
+ }
+ 
+ /**
+- * Callback fired when a signal is trapped
+- * @param signal type of signal
++ * bwat: a stop signal, handled on the glib loop rather than in a signal handler, so leaving
++ * and cleaning up never interrupt a chat send, which runs on the same loop.
++ * @param data the signal's number
++ * @return never returns
+  */
+-void onSignal(int signal) {
++gboolean onStopSignal(gpointer data) {
+     onExit();
+-    _Exit(signal);
++    _Exit(GPOINTER_TO_INT(data));
+ }
+ 
+ 
+@@ -44,8 +47,8 @@ SDKError run(int argc, char** argv) {
+     SDKError err{SDKERR_SUCCESS};
+     auto* zoom = &Zoom::getInstance();
+ 
+-    signal(SIGINT, onSignal);
+-    signal(SIGTERM, onSignal);
++    g_unix_signal_add(SIGINT, onStopSignal, GINT_TO_POINTER(SIGINT));
++    g_unix_signal_add(SIGTERM, onStopSignal, GINT_TO_POINTER(SIGTERM));
+ 
+     atexit(onExit);
+ 
+diff --git a/src/raw_record/ZoomSDKAudioRawDataDelegate.cpp b/src/raw_record/ZoomSDKAudioRawDataDelegate.cpp
+index 9e6ae3c..659048e 100644
+--- a/src/raw_record/ZoomSDKAudioRawDataDelegate.cpp
++++ b/src/raw_record/ZoomSDKAudioRawDataDelegate.cpp
+@@ -1,12 +1,19 @@
+ #include "ZoomSDKAudioRawDataDelegate.h"
+ 
+ 
+-ZoomSDKAudioRawDataDelegate::ZoomSDKAudioRawDataDelegate(bool useMixedAudio = true, bool transcribe = false) : m_useMixedAudio(useMixedAudio), m_transcribe(transcribe){}
++ZoomSDKAudioRawDataDelegate::ZoomSDKAudioRawDataDelegate(bool useMixedAudio = true, bool transcribe = false, bool separate = false) : m_useMixedAudio(useMixedAudio), m_transcribe(transcribe), m_framed(transcribe && separate) {
++    // bwat: the transcribe path writes to this server, which nothing started.
++    if (m_transcribe) server.start();
++}
+ 
+ void ZoomSDKAudioRawDataDelegate::onMixedAudioRawDataReceived(AudioRawData *data) {
+     if (!m_useMixedAudio) return;
+ 
+     // write to socket
++    if (m_framed) {
++        writeFrame(0, data);  // node 0 is the mixed stream
++        return;
++    }
+     if (m_transcribe) {
+         server.writeBuf(data->GetBuffer(), data->GetBufferLen());
+         return;
+@@ -30,6 +37,10 @@ void ZoomSDKAudioRawDataDelegate::onMixedAudioRawDataReceived(AudioRawData *data
+ 
+ 
+ void ZoomSDKAudioRawDataDelegate::onOneWayAudioRawDataReceived(AudioRawData* data, uint32_t node_id) {
++    if (m_framed) {
++        writeFrame(node_id, data);
++        return;
++    }
+     if (m_useMixedAudio) return;
+ 
+     stringstream path;
+@@ -44,6 +55,20 @@ void ZoomSDKAudioRawDataDelegate::onShareAudioRawDataReceived(AudioRawData* data
+ }
+ 
+ 
++void ZoomSDKAudioRawDataDelegate::writeFrame(uint32_t node, AudioRawData* data)
++{
++    uint32_t len = data->GetBufferLen();
++    std::vector<char> frame(8 + len);
++    for (int i = 0; i < 4; i++) {
++        frame[i] = (char)((node >> (8 * i)) & 0xff);
++        frame[4 + i] = (char)((len >> (8 * i)) & 0xff);
++    }
++    memcpy(frame.data() + 8, data->GetBuffer(), len);
++
++    std::lock_guard<std::mutex> lock(m_writeMutex);
++    server.writeBuf(frame.data(), (int)frame.size());
++}
++
+ void ZoomSDKAudioRawDataDelegate::writeToFile(const string &path, AudioRawData *data)
+ {
+     static std::ofstream file;
+diff --git a/src/raw_record/ZoomSDKAudioRawDataDelegate.h b/src/raw_record/ZoomSDKAudioRawDataDelegate.h
+index 678804d..ab2f10e 100644
+--- a/src/raw_record/ZoomSDKAudioRawDataDelegate.h
++++ b/src/raw_record/ZoomSDKAudioRawDataDelegate.h
+@@ -5,6 +5,9 @@
+ #include <iostream>
+ #include <fstream>
+ #include <sstream>
++#include <cstring>
++#include <mutex>
++#include <vector>
+ 
+ #include "zoom_sdk_raw_data_def.h"
+ #include "rawdata/rawdata_audio_helper_interface.h"
+@@ -22,10 +25,15 @@ class ZoomSDKAudioRawDataDelegate : public IZoomSDKAudioRawDataDelegate {
+     string m_filename = "test.pcm";
+     bool m_useMixedAudio;
+     bool m_transcribe;
++    // bwat: transcribe + separate participants. Every chunk, mixed (node 0) and
++    // per participant alike, goes to the socket as [u32 node LE][u32 len LE][pcm].
++    bool m_framed;
++    std::mutex m_writeMutex;  // a header and its body leave as one write
+ 
+     void writeToFile(const string& path, AudioRawData* data);
++    void writeFrame(uint32_t node, AudioRawData* data);
+ public:
+-    ZoomSDKAudioRawDataDelegate(bool useMixedAudio, bool transcribe);
++    ZoomSDKAudioRawDataDelegate(bool useMixedAudio, bool transcribe, bool separate);
+     string dir() const;
+     void setDir(const string& dir);
+     string filename() const;
+diff --git a/src/raw_send/BwatPresenceSource.h b/src/raw_send/BwatPresenceSource.h
+new file mode 100644
+index 0000000..1856da9
+--- /dev/null
++++ b/src/raw_send/BwatPresenceSource.h
+@@ -0,0 +1,104 @@
++#ifndef BWAT_PRESENCE_SOURCE_H
++#define BWAT_PRESENCE_SOURCE_H
++
++// bwat: the bot's presence frame (D196). One 1280x720 I420 frame, which the bot
++// renders before each join (bwat_bot/presence.py), sent as the bot's video twice a second
++// so a late joiner still gets a picture. Nothing else is ever sent as video, and no audio.
++// Set with bwatSetVideoSource() before Join().
++//
++// Zoom's SDK moved the frame format: up to 7.0.2 each sendVideoFrame() names it; later
++// SDKs drop it there and take it once, in setExternalVideoSource(). The two overloads of
++// each helper below pick whichever call the SDK's headers declare (the int one when both
++// would do), so one patch builds against both.
++
++#include <atomic>
++#include <chrono>
++#include <cstdio>
++#include <fstream>
++#include <iterator>
++#include <string>
++#include <thread>
++#include <vector>
++
++#include "zoom_sdk_def.h"
++#include "rawdata/rawdata_video_source_helper_interface.h"
++
++USING_ZOOM_SDK_NAMESPACE
++
++template <class Sender>
++auto bwatSendFrame(Sender* s, char* frame, int w, int h, int length, int)
++    -> decltype(s->sendVideoFrame(frame, w, h, length, 0, FrameDataFormat_I420_FULL)) {
++    return s->sendVideoFrame(frame, w, h, length, 0, FrameDataFormat_I420_FULL);
++}
++template <class Sender>
++auto bwatSendFrame(Sender* s, char* frame, int w, int h, int length, long)
++    -> decltype(s->sendVideoFrame(frame, w, h, length, 0)) {
++    return s->sendVideoFrame(frame, w, h, length, 0);
++}
++template <class Helper, class Source>
++auto bwatSetVideoSource(Helper* h, Source* source, int)
++    -> decltype(h->setExternalVideoSource(source, FrameDataFormat_I420_FULL)) {
++    return h->setExternalVideoSource(source, FrameDataFormat_I420_FULL);
++}
++template <class Helper, class Source>
++auto bwatSetVideoSource(Helper* h, Source* source, long)
++    -> decltype(h->setExternalVideoSource(source)) {
++    return h->setExternalVideoSource(source);
++}
++
++class BwatPresenceSource : public IZoomSDKVideoSource {
++public:
++    static constexpr int kWidth = 1280, kHeight = 720;
++
++    explicit BwatPresenceSource(const std::string& path) {
++        std::ifstream in(path, std::ios::binary);
++        m_frame.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
++    }
++    ~BwatPresenceSource() override { stop(); }
++
++    bool ok() const { return m_frame.size() == static_cast<size_t>(kWidth * kHeight * 3 / 2); }
++
++    void onInitialize(IZoomSDKVideoSender* sender, IList<VideoSourceCapability>* caps,
++                      VideoSourceCapability& suggest) override {
++        m_sender = sender;
++        for (int i = 0; caps && i < caps->GetCount(); i++) {
++            auto cap = caps->GetItem(i);
++            if (cap.width == kWidth && cap.height == kHeight) {
++                suggest = cap;
++                return;
++            }
++        }
++        printf("BWAT_MEETING_STATUS_JSON {\"event\":\"presence\",\"code\":\"720p_not_offered\"}\n");
++        fflush(stdout);
++    }
++    void onPropertyChange(IList<VideoSourceCapability>*, VideoSourceCapability) override {}
++
++    void onStartSend() override {
++        if (!ok() || !m_sender || m_sending.exchange(true)) return;
++        m_thread = std::thread([this] {
++            while (m_sending) {
++                bwatSendFrame(m_sender, m_frame.data(), kWidth, kHeight,
++                              static_cast<int>(m_frame.size()), 0);
++                std::this_thread::sleep_for(std::chrono::milliseconds(500));
++            }
++        });
++    }
++    void onStopSend() override { stop(); }
++    void onUninitialized() override {
++        stop();
++        m_sender = nullptr;
++    }
++
++private:
++    void stop() {
++        m_sending = false;
++        if (m_thread.joinable()) m_thread.join();
++    }
++
++    std::vector<char> m_frame;
++    IZoomSDKVideoSender* m_sender = nullptr;
++    std::atomic<bool> m_sending{false};
++    std::thread m_thread;
++};
++
++#endif
+diff --git a/src/util/SocketServer.cpp b/src/util/SocketServer.cpp
+index bbb23ee..6e104b6 100644
+--- a/src/util/SocketServer.cpp
++++ b/src/util/SocketServer.cpp
+@@ -1,5 +1,7 @@
+ #include "SocketServer.h"
+ 
++#include <cerrno>
++
+ SocketServer::SocketServer() {
+     pthread_mutex_init(&m_mutex, NULL);
+ }
+@@ -61,17 +63,20 @@ void* SocketServer::run() {
+             Log::error("failed to accept connection");
+             return nullptr;
+         }
++        ready = true;  // bwat: writeBuf is safe only from here
+ 
+         for(;;) {
+             auto ret = read(m_dataSocket, buffer, 5);
+-            if (ret == -1) {
+-                Log::error("failed to read socket");
+-                return nullptr;
++            if (ret <= 0) {  // bwat: the client left: accept the next one
++                Log::info("socket client disconnected");
++                break;
+             }
+ 
+             buffer[c_bufferSize - 1] = 0;
+         }
+-        return nullptr;
++        ready = false;
++        close(m_dataSocket);
++        m_dataSocket = 0;
+     }
+ 
+     return nullptr;
+@@ -83,23 +88,29 @@ bool SocketServer::isReady() {
+ 
+ 
+ int SocketServer::writeBuf(const char* buf, int len) {
+-    auto ret = write(m_dataSocket, buf, len);
+-    if (ret == -1) {
+-        Log::error("failed to write data");
+-        exit(EXIT_FAILURE);
++    // bwat: no client (yet, or any more): drop the chunk; never exit mid-meeting.
++    if (!ready || m_dataSocket <= 0) return -1;
++    // Finish the write or drop the client: a short write would put a framed
++    // stream out of step for good. send, not write: a closed reader must not
++    // SIGPIPE the app.
++    int off = 0;
++    while (off < len) {
++        auto ret = send(m_dataSocket, buf + off, len - off, MSG_NOSIGNAL);
++        if (ret < 0 && errno == EINTR)
++            continue;
++        if (ret <= 0) {
++            shutdown(m_dataSocket, SHUT_RDWR);  // the reader sees EOF and reconnects
++            ready = false;
++            return -1;
++        }
++        off += ret;
+     }
+ 
+     return 0;
+ }
+ 
+ int SocketServer::writeBuf(const unsigned char* buf, int len) {
+-    auto ret = write(m_dataSocket, buf, len);
+-    if (ret == -1) {
+-        Log::error("failed to write data");
+-        exit(EXIT_FAILURE);
+-    }
+-
+-    return 0;
++    return writeBuf(reinterpret_cast<const char*>(buf), len);
+ }
+ 
+ int SocketServer::writeStr(const string& str) {
+diff --git a/src/util/SocketServer.h b/src/util/SocketServer.h
+index c8e5e38..f55b0cd 100644
+--- a/src/util/SocketServer.h
++++ b/src/util/SocketServer.h
+@@ -26,13 +26,13 @@ class SocketServer : public Singleton<SocketServer> {
+ 
+     struct sockaddr_un m_addr;
+ 
+-    int m_listenSocket;
+-    int m_dataSocket;
++    int m_listenSocket = 0;
++    int m_dataSocket = 0;
+ 
+     pthread_t m_pid;
+     pthread_mutex_t m_mutex;
+ 
+-    bool ready;
++    bool ready = false;  // bwat: set on accept; never initialized or set upstream
+ 
+     void* run();
+     static void* threadCreate(void* obj);

@@ -1,0 +1,6 @@
+/* Week chips in the web sidebar, above the meeting list. */
+body.surface-zoom .week-pick{display:none !important}
+/* A related-record pointer into another week: opening it loads that week. */
+a.elsewhere{text-decoration-style:dotted}
+.week-pick{display:flex;flex-direction:column;gap:4px;margin:0 0 12px;font-size:12px;color:var(--muted)}
+.week-pick select{width:100%}

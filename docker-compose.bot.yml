@@ -1,0 +1,53 @@
+# The bot on the local stack, layered on docker-compose.yml (which stays as it is):
+#   docker compose -p <p> -f docker-compose.yml -f docker-compose.bot.yml --profile bot up -d bot
+# It runs the fake bridge (no Zoom), so it proves the bot's contract with the backend.
+# scripts/smoke-bot.sh mints a fleet credential and passes it in the container's environment,
+# so `docker inspect` shows it until the stack is taken down. Local stacks only.
+services:
+  bot:
+    build: ./bot
+    profiles: [bot]
+    environment:
+      BWAT_BACKEND_URL: http://backend:3000
+      BWAT_LOCAL_STACK: "1"
+      BWAT_BRIDGE: fake
+      BWAT_FLEET_CREDENTIAL: ${BWAT_FLEET_CREDENTIAL:-}
+      # Empty means the bot's default transcription route (OpenRouter). The smoke test also
+      # runs it against a trusted stand-in host, which readiness never contacts.
+      BWAT_ASR_URL: ${BWAT_ASR_URL:-}
+      BWAT_ASR_TRUSTED_HOSTS: ${BWAT_ASR_TRUSTED_HOSTS:-}
+      # The fake bridge plays this recording as the meeting's audio once joined.
+      BWAT_FAKE_AUDIO: /app/speech.wav
+      # The live feed the card service dials (bot/bwat_bot/feed.py), on the compose network only.
+      BWAT_FEED_PORT: "8771"
+    volumes:
+      - ./bot/tests/fixtures/speech.wav:/app/speech.wav:ro
+    expose: ["8771"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    read_only: true
+    stop_grace_period: 20s
+    # A bridge whose leave is never confirmed makes the bot exit 3; restart it fresh. Capped,
+    # so a configuration error (exit 2, which no retry fixes) stops instead of crash-looping.
+    restart: on-failure:5
+
+  # The bot in real Zoom meetings: the image setup/zoom-sdk builds from the Meeting SDK each
+  # company downloads (never built here, never shipped). `--profile zoom up -d bot-zoom`.
+  # Not read-only and run as root: PulseAudio and the SDK app write under /var and /tmp. The
+  # SDK's bridge stays inside the container (loopback); only the feed is on the network.
+  bot-zoom:
+    image: bwat-bot:zoom
+    profiles: [zoom]
+    environment:
+      BWAT_BACKEND_URL: http://backend:3000
+      BWAT_FLEET_CREDENTIAL: ${BWAT_FLEET_CREDENTIAL:-}
+      BWAT_ASR_URL: ${BWAT_ASR_URL:-}
+      BWAT_ASR_TRUSTED_HOSTS: ${BWAT_ASR_TRUSTED_HOSTS:-}
+      BWAT_FEED_PORT: "8771"
+    expose: ["8771"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    stop_grace_period: 20s
+    restart: on-failure:5

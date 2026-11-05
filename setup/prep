@@ -1,0 +1,251 @@
+#!/usr/bin/env bash
+# Prepare an install before running setup: everything a person creates by hand,
+# in the order they create it, collected in bwat.answers at the repository root.
+#
+#   ./bwat prep           writes bwat.answers if it is missing (never touches one
+#                         that exists); once the address and the Zoom contact are
+#                         in it, writes the Zoom manifests; says what is left
+#   ./bwat prep --check   names the values still blank (never a value) and exits 1
+#                         until everything setup needs is there
+#
+# ./bwat setup then reads bwat.answers and asks only for what is still missing.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+check=
+case "${1:-}" in
+  --check) check=1 ;;
+  '') ;;
+  *) echo "usage: ./bwat prep [--check]" >&2; exit 2 ;;
+esac
+
+# shellcheck source=../bot/sdk/zoom-sdk.lock
+. bot/sdk/zoom-sdk.lock
+file=bwat.answers
+
+umask 077
+if [ ! -f "$file" ]; then
+  # The edge's port: the first free one from 8080, chosen now, before the Google and
+  # Zoom steps write the address (http://localhost:<port>) into their clients.
+  edge_port=8080
+  while [ "$edge_port" -lt 65535 ] && (exec 3<>"/dev/tcp/127.0.0.1/$edge_port") 2>/dev/null; do edge_port=$((edge_port + 1)); done
+  cat > "$file" <<EOF
+# bwat.answers: everything ./bwat setup needs, in the order you create it.
+# One value per line after the =, no quotes. Lines marked "secret" you paste in
+# yourself, or copy the value and run ./bwat secret KEY, which saves it from the
+# clipboard; nothing prints them. Run ./bwat prep again after each part: it writes
+# what it can, and ./bwat prep --check names what is still blank.
+
+# 1. The mode, then your address.
+# developer: bwat on this computer only (local); it joins a meeting when you paste its link.
+# production: a cloud server (AWS or any other) at a public domain; adds Zoom's meeting
+#   events, so bwat can join meetings on its own (auto-join).
+# developer or production:
+BWAT_MODE=developer
+# The tier (./bwat setup --tier): local is this computer only, with no Google: you sign in
+# with a code setup shows. production is the cloud server. Blank: production in
+# production mode, otherwise local. local or production:
+BWAT_TIER=
+# local only: your email. It signs in as the owner; anyone else with the code is a member.
+BWAT_FIRST_OWNER_EMAIL=
+# The address, as https://<host>, no path. Production: your public domain. local:
+# http://localhost:8080 (or your BWAT_EDGE_PORT); blank is filled in for you.
+BWAT_PUBLIC_URL=
+# Production only: external if a load balancer or a proxy gives the address HTTPS;
+# caddy if bwat gets its own certificate, ports 80 and 443 open:
+BWAT_TLS=
+# The port bwat listens on, on this machine's loopback: the first free one from 8080.
+BWAT_EDGE_PORT=$edge_port
+
+# 2. Google sign-in (production only; on local leave this part blank), in your company's project at https://console.cloud.google.com/
+# (a new project in a company organisation needs a billing account). Set up the sign-in
+# screen at $(setup/paths google-overview). Run ./bwat prep once the address is
+# in: it prints the exact origin and redirect URI for the web client. Clients are made at
+# $(setup/paths google-clients); leave "This client will
+# be used by an AI-powered agent" unticked.
+# Your company's Google domains, comma-separated (only these accounts get in):
+BWAT_ALLOWED_DOMAINS=
+# $(setup/paths google-clients), then $(setup/paths google-web-type) > Client ID:
+BWAT_GOOGLE_CLIENT_ID=
+# secret: paste yourself, or copy it and run ./bwat secret BWAT_GOOGLE_CLIENT_SECRET. The same web client's Client secret:
+BWAT_GOOGLE_CLIENT_SECRET=
+# $(setup/paths google-clients), then $(setup/paths google-desktop-type), named 'bwat desktop', no URLs, then its Client ID:
+BWAT_GOOGLE_DESKTOP_CLIENT_ID=
+# secret: paste yourself, or copy it and run ./bwat secret BWAT_GOOGLE_DESKTOP_CLIENT_SECRET. The same Desktop client's Client secret (bwat hands it to the plugin):
+BWAT_GOOGLE_DESKTOP_CLIENT_SECRET=
+
+# 3. Your Zoom app. Run ./bwat prep once the address, the company and the contact are
+# in: it writes zoom-manifest.json. Create the app at $(setup/paths zoom-new-app),
+# then upload it with $(setup/paths zoom-manifest-upload).
+# Do not submit it for publication.
+# The name the bot shows in meetings, in the Zoom participant list and chat:
+BWAT_BOT_NAME=bwat
+# Zoom asks for these before the app can be shared in your account (Beta Test):
+# your company name, and a contact name and email (names: letters, digits, spaces and
+# . _ ( ) -; no apostrophe, comma or &). A blank contact email is the owner's, BWAT_FIRST_OWNER_EMAIL:
+BWAT_ZOOM_COMPANY=
+BWAT_ZOOM_CONTACT_NAME=
+BWAT_ZOOM_CONTACT_EMAIL=
+# Your first name: the apps are named "bwat <name> bot" and "bwat <name> board"
+# (letters, digits, spaces and . _ ( ) -; no apostrophe, comma or &; blank: the contact name's first word):
+BWAT_ZOOM_OWNER_NAME=
+# $(setup/paths zoom-app-credentials) > Client ID:
+ZOOM_CLIENT_ID=
+# secret: paste yourself, or copy it and run ./bwat secret ZOOM_CLIENT_SECRET. In $(setup/paths zoom-app-credentials) > Client Secret:
+ZOOM_CLIENT_SECRET=
+# Production only; on local leave it blank.
+# secret: paste yourself, or copy it and run ./bwat secret ZOOM_WEBHOOK_SECRET. In the main app, $(setup/paths zoom-event-secret):
+ZOOM_WEBHOOK_SECRET=
+
+# 4. The board app, production only; on local leave this part blank. bwat's board inside a meeting. Zoom allows an in-meeting app only
+# on a user-managed app, so it is a second app, made the same way from
+# zoom-board-manifest.json (./bwat prep wrote it next to zoom-manifest.json).
+# In $(setup/paths zoom-sdk-capabilities), confirm getAppContext and getMeetingUUID
+# are enabled (getUserContext too, to identify who opens the board as a speaker); the
+# generated manifest includes them. For an existing app, changing
+# URLs alone does not add them: enable them, save, regenerate the authorization URL,
+# open that new URL to authorize again, then reopen the board inside the meeting.
+# Zoom error 10047 means an API permission was denied; check these capabilities.
+# Next: $(setup/paths zoom-beta-test); then $(setup/paths zoom-preview).
+# If Add app now says Invalid redirect (4,700), type the redirect URL in again in
+# $(setup/paths zoom-oauth-information) and save.
+# Then $(setup/paths zoom-add-for-others); then, in the web portal,
+# $(setup/paths zoom-account-settings), then
+# $(setup/paths zoom-auto-open); the app is <app name> board.
+# bwat reads who opens the board inside Zoom with the board app's Client Secret.
+# secret: paste yourself, or copy it and run ./bwat secret ZOOM_BOARD_CLIENT_SECRET. In the board app's $(setup/paths zoom-app-credentials) > Client Secret:
+ZOOM_BOARD_CLIENT_SECRET=
+# Write yes once the board app is created and added:
+BOARD_APP_ADDED=
+
+# 5. Optional, recommended: a Server-to-Server OAuth app. With it bwat records your
+# account's meetings without the host allowing it; production mode's auto-join needs
+# it too. To create one:
+# $(setup/paths zoom-s2s-new), named 'bwat s2s'; fill the required Information fields,
+# add scopes meeting:read:meeting:admin, meeting:read:local_recording_token:admin and
+# user:read:user:admin, then Activate it. Leave all three blank to skip.
+# $(setup/paths zoom-s2s-credentials) > Account ID:
+ZOOM_S2S_ACCOUNT_ID=
+# $(setup/paths zoom-s2s-credentials) > Client ID:
+ZOOM_S2S_CLIENT_ID=
+# secret: paste yourself, or copy it and run ./bwat secret ZOOM_S2S_CLIENT_SECRET. In $(setup/paths zoom-s2s-credentials) > Client Secret:
+ZOOM_S2S_CLIENT_SECRET=
+
+# 6. The Zoom Meeting SDK (no line here). In your bwat Zoom app, $(setup/paths zoom-sdk-download): download the Linux x86_64 SDK,
+# Zoom's latest ($ZOOM_SDK_MIN_VERSION or later; bwat is tested with $ZOOM_SDK_VERSION), into your Downloads folder
+# (under WSL, the Windows one works too). Setup waits for it if it is not there yet.
+
+# 7. The model key. $(setup/paths openrouter-keys); it serves transcription and the card writer.
+# secret: paste yourself, or copy it and run ./bwat secret OPENROUTER_API_KEY:
+OPENROUTER_API_KEY=
+# Jev (TypeSafe, via OpenRouter) tells the card writer when to write, for cards within seconds; it uses the key above. on (recommended) or off:
+BWAT_JEV=on
+EOF
+  if [ -n "${BWAT_ONBOARD_PAGE:-}" ]; then echo "Answers file created."; else echo "wrote $PWD/$file"; fi
+fi
+
+# Each value as an a_<KEY> variable: macOS's bash 3.2 has no associative arrays.
+# A last line with no newline still counts; a Windows editor's \r is dropped.
+while IFS= read -r line || [ -n "$line" ]; do
+  line=${line%$'\r'}
+  key=${line%%=*}
+  [[ $line != \#* && $key =~ ^[A-Z0-9_]+$ ]] && printf -v "a_$key" '%s' "${line#*=}"
+done < "$file"
+# Zoom's contact is usually whoever installs, the owner.
+[ -n "${a_BWAT_ZOOM_CONTACT_EMAIL:-}" ] || a_BWAT_ZOOM_CONTACT_EMAIL=${a_BWAT_FIRST_OWNER_EMAIL:-}
+
+url=${a_BWAT_PUBLIC_URL:-}
+url=${url%/} # a pasted address often ends in a slash
+required=(BWAT_MODE BWAT_PUBLIC_URL BWAT_ALLOWED_DOMAINS BWAT_GOOGLE_CLIENT_ID
+  BWAT_GOOGLE_CLIENT_SECRET BWAT_GOOGLE_DESKTOP_CLIENT_ID BWAT_GOOGLE_DESKTOP_CLIENT_SECRET
+  BWAT_ZOOM_COMPANY BWAT_ZOOM_CONTACT_NAME BWAT_ZOOM_CONTACT_EMAIL
+  ZOOM_CLIENT_ID ZOOM_CLIENT_SECRET OPENROUTER_API_KEY)
+# The tier: as written, or else read from the answers the way setup reads it (derived_tier).
+tier=${a_BWAT_TIER:-}
+# t0 is the local tier's name before QOR-5117, still in an answers file written then.
+[ "$tier" != t0 ] || tier=local
+tier_note=
+if [ -z "$tier" ]; then
+  if [ "${a_BWAT_MODE:-}" = production ] || { [ -z "${a_BWAT_MODE:-}" ] && [ "${a_BWAT_TLS:-}" = caddy ]; }; then
+    tier=production
+  else
+    tier=local
+  fi
+  tier_note=" (from your answers; set BWAT_TIER to choose)"
+fi
+[ "$tier" != local ] || tier_note="${tier_note:+ (from your answers: this computer only, no Google; set BWAT_TIER to choose)}"
+# A local install signs in with a code, not Google (D202): the owner's email instead of the Google part.
+# Its address is always this computer's (setup gives it no other), so a blank one is filled.
+if [ "$tier" = local ]; then
+  [ -n "$url" ] || url=http://localhost:${a_BWAT_EDGE_PORT:-8080}
+  required=(BWAT_FIRST_OWNER_EMAIL BWAT_ZOOM_COMPANY BWAT_ZOOM_CONTACT_NAME BWAT_ZOOM_CONTACT_EMAIL
+    ZOOM_CLIENT_ID ZOOM_CLIENT_SECRET OPENROUTER_API_KEY)
+fi
+# Production only: the board app (it runs inside Zoom, which installs it only at a public
+# https address), who gives the address HTTPS, and Zoom's meeting events.
+[ "$tier" != production ] || required+=(ZOOM_BOARD_CLIENT_SECRET BOARD_APP_ADDED BWAT_TLS ZOOM_WEBHOOK_SECRET)
+missing=()
+for key in "${required[@]}"; do
+  name="a_$key"
+  [ -n "${!name:-}" ] || missing+=("$key")
+done
+# The archive setup would build from (setup/zoom-sdk --find): the tested version, or a newer one.
+sdk=$(setup/zoom-sdk --find || true)
+
+if [ -n "$check" ]; then
+  echo "tier: $tier$tier_note"
+  for key in ${missing[@]+"${missing[@]}"}; do echo "blank: $key"; done
+  if [ -z "$sdk" ]; then
+    echo "missing: the Zoom Meeting SDK for Linux x86_64 in your Downloads folder ($ZOOM_SDK_MIN_VERSION or later; Zoom's latest is fine)"
+    # A download that cannot be used: name it, and why.
+    other=$(ls -t .bwat/sdk/zoom-meeting-sdk-linux*.tar* "$HOME"/Downloads/zoom-meeting-sdk-linux*.tar* \
+      /mnt/c/Users/*/Downloads/zoom-meeting-sdk-linux*.tar* 2>/dev/null | head -n 1 || true)
+    [ -z "$other" ] || echo "  found $(basename "$other"): bwat needs the Linux x86_64 SDK, $ZOOM_SDK_MIN_VERSION or later"
+  fi
+  if [ -z "${a_ZOOM_S2S_ACCOUNT_ID:-}" ]; then
+    echo "optional, blank: ZOOM_S2S_ACCOUNT_ID, ZOOM_S2S_CLIENT_ID, ZOOM_S2S_CLIENT_SECRET (recommended)"
+  fi
+  rosetta=0
+  setup/docker-rosetta "./bwat prep --check" || rosetta=1
+  if [ -n "${missing[*]:-}" ] || [ -z "$sdk" ] || [ "$rosetta" -eq 1 ]; then
+    exit 1
+  fi
+  echo "complete: run ./bwat setup"
+  exit 0
+fi
+
+if [ -n "$url" ] && [ "$tier" != local ]; then
+  echo "Google web client: JavaScript origin $url, redirect URI $url/auth/callback"
+fi
+# The manifests need the address and Zoom's company and contact. On http://localhost
+# there is the main app only.
+if [[ $url =~ ^(https://|http://localhost:) ]] && [ -n "${a_BWAT_ZOOM_COMPANY:-}" ] \
+  && [ -n "${a_BWAT_ZOOM_CONTACT_NAME:-}" ] && [ -n "${a_BWAT_ZOOM_CONTACT_EMAIL:-}" ]; then
+  export BWAT_PUBLIC_URL=$url BWAT_MODE=${a_BWAT_MODE:-} BWAT_ZOOM_OWNER_NAME=${a_BWAT_ZOOM_OWNER_NAME:-} \
+    BWAT_ZOOM_COMPANY=${a_BWAT_ZOOM_COMPANY} BWAT_ZOOM_CONTACT_NAME=${a_BWAT_ZOOM_CONTACT_NAME} \
+    BWAT_ZOOM_CONTACT_EMAIL=${a_BWAT_ZOOM_CONTACT_EMAIL}
+  setup/zoom-manifest > zoom-manifest.json
+  files=("Zoom app manifest:zoom-manifest.json")
+  if [ "$tier" = production ]; then
+    BWAT_PUBLIC_URL=$url setup/zoom-manifest --board > zoom-board-manifest.json
+    files+=("board app manifest:zoom-board-manifest.json")
+  else
+    rm -f zoom-board-manifest.json
+  fi
+  for file in "${files[@]}"; do
+    echo "${file%:*}: $PWD/${file##*:}"
+    if command -v cygpath > /dev/null; then
+      echo "  (in Windows: $(cygpath -w "$PWD/${file##*:}"))"
+    fi
+  done
+fi
+if [ -n "$sdk" ]; then
+  echo "Zoom Meeting SDK found: $sdk"
+fi
+# On the setup page, its later steps fill the answers and run prep again: no terminal steps.
+[ -z "${BWAT_ONBOARD_PAGE:-}" ] || exit 0
+if [ ! -f zoom-manifest.json ]; then
+  echo "The Zoom manifests come once BWAT_PUBLIC_URL, BWAT_ZOOM_COMPANY, BWAT_ZOOM_CONTACT_NAME and"
+  echo "BWAT_ZOOM_CONTACT_EMAIL are filled: run ./bwat prep again then."
+fi
+echo "Fill $PWD/bwat.answers, then ./bwat prep --check names what is still blank."

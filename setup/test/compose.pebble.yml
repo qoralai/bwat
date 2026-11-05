@@ -1,0 +1,33 @@
+# Pebble, the ACME test CA. setup/test/run.sh copies this file into the
+# test host's tree as compose.local.yml, so Pebble joins the same compose
+# project and network as the install under test; ./bwat setup layers it on
+# when it is there. Its listener certificate names localhost, pebble and
+# 127.0.0.1.
+services:
+  pebble:
+    image: ghcr.io/letsencrypt/pebble:2.10.1@sha256:ddf230642b1a584f519f32e347de1b05a6e4c1f6c35c1863b33effeab5f78199
+    # Validates on the standard ports 80 and 443, which the edge serves.
+    command: ["-config", "/config/pebble-config.json"]
+    # Pebble by default rejects some nonces and sleeps before validating, to
+    # exercise clients. The installer's tests need it prompt and steady.
+    environment:
+      PEBBLE_WFE_NONCEREJECT: "0"
+      PEBBLE_VA_NOSLEEP: "1"
+    volumes:
+      - ./setup/test/pebble-config.json:/config/pebble-config.json:ro
+      # Filled from the image on first use; the edge reads the listener root here.
+      - pebble-certs:/test/certs
+    ports:
+      - "127.0.0.1:14000:14000"
+      - "127.0.0.1:15000:15000"
+
+  # The edge asks Pebble for its certificate and trusts Pebble's listener.
+  edge:
+    environment:
+      BWAT_ACME_CA: https://pebble:14000/dir
+      SSL_CERT_FILE: /pebble-certs/pebble.minica.pem
+    volumes:
+      - pebble-certs:/pebble-certs:ro
+
+volumes:
+  pebble-certs:
