@@ -1,8 +1,10 @@
 import { randomBytes } from 'node:crypto';
+import type pg from 'pg';
 import { expect, it } from 'vitest';
-import { localSecretStore, withEnvFallback } from '../src/secrets/store.ts';
+import { awsSecretStore, localSecretStore, secretStoreFromEnv, withEnvFallback } from '../src/secrets/store.ts';
 import { ZOOM_SECRET_ENV } from '../src/config.ts';
 import { describeDb } from './db/harness.ts';
+import { FakeSecretsManager } from './fake-secrets-manager.ts';
 import { ADMIN, ADMIN_ID, MEMBER, OWNER, useRoles } from './people.ts';
 
 // QOR-4668 (D142, D173): the Zoom secrets, and the plugins' own, are entered in the admin panel, like
@@ -72,5 +74,57 @@ describeDb('/console/secrets (QOR-4668)', () => {
       expect(res.statusCode, String(value)).toBe(400);
       expect(res.json()).toEqual({ error: 'invalid_value' });
     }
+  });
+});
+
+// A change is audited first and the store written last, in one transaction: a store that
+// cannot write must answer 503 and leave neither an audit row nor a value behind.
+const secretAudits = async (pool: pg.Pool) =>
+  (await pool.query(`SELECT count(*)::int AS n FROM audit WHERE target_type LIKE 'secret:%'`)).rows[0]!.n;
+
+describeDb('/console/secrets when Secrets Manager cannot be reached', () => {
+  const lines: string[] = [];
+  const fake = new FakeSecretsManager();
+  const t = useRoles({
+    logger: { level: 'trace', stream: { write: (line: string) => void lines.push(line) } },
+    secrets: () => awsSecretStore(fake, 'bwat/test/', { retryDelaysMs: [0] }),
+  });
+
+  it('answers 503 secret_unavailable to a set and a remove, audits nothing, and still lists the secrets as unavailable', async () => {
+    fake.failWith = 'AccessDeniedException';
+    try {
+      for (const [method, payload] of [
+        ['PUT', { value: VALUE }],
+        ['DELETE', {}],
+      ] as const) {
+        const res = await t.app.inject({ method, url: '/console/secrets/zoom.webhook_secret', headers: ADMIN, payload });
+        expect(res.statusCode, method).toBe(503);
+        expect(res.json(), method).toEqual({ error: 'secret_unavailable' });
+      }
+      const list = await t.app.inject({ method: 'GET', url: '/console/secrets', headers: ADMIN });
+      expect(list.statusCode).toBe(200);
+      expect(list.json().secrets).toContainEqual({ name: 'zoom.webhook_secret', set: false, source: 'unavailable', last4: null });
+    } finally {
+      fake.failWith = null;
+    }
+    // DELETE writes its audit row before the store refuses: it must roll back.
+    expect(await secretAudits(t.pool)).toBe(0);
+    expect(lines.join('\n')).not.toContain(VALUE);
+  });
+});
+
+describeDb('/console/secrets with no BWAT_ENC_KEY to write with', () => {
+  const t = useRoles({ secrets: (pool) => secretStoreFromEnv({}, pool) });
+
+  it('answers 503 not_configured to a set and a remove; the set\'s audit row, written before the store refuses, rolls back', async () => {
+    for (const [method, payload] of [
+      ['PUT', { value: VALUE }],
+      ['DELETE', {}],
+    ] as const) {
+      const res = await t.app.inject({ method, url: '/console/secrets/zoom.client_secret', headers: ADMIN, payload });
+      expect(res.statusCode, method).toBe(503);
+      expect(res.json(), method).toEqual({ error: 'not_configured' });
+    }
+    expect(await secretAudits(t.pool)).toBe(0);
   });
 });

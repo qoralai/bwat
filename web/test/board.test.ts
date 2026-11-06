@@ -2984,10 +2984,10 @@ describe('meeting desk (board.html)', () => {
       body: { source_kind: 'card', source_id: CARD_OWNED, occurrence_id: MEETING, target_session_id: 'sess-1' },
     });
     expect((sent[0]!.body as { request_key: string }).request_key).toBeTruthy();
-    // The card's Queued chip says it; no notice besides.
+    // The card's receipt says where it went; no notice besides.
     await until(() => document.querySelector('#announcement')!.textContent === 'Queued.');
-    expect(cardEl(document, CARD_OWNED)!.querySelector('.badge.queued')!.textContent).toBe('Queued');
-    expect(visibleText(document)).not.toMatch(/Queued for|Sent to|delivered|when it.s read|with a note/i);
+    expect(cardEl(document, CARD_OWNED)!.querySelector('.badge.queued')!.textContent).toBe('Queued for bwat repo @ ada-mac');
+    expect(visibleText(document)).not.toMatch(/Sent to|delivered|when it.s read|with a note/i);
     // The open card's own receipt says the same.
     (document.querySelector(`[data-open="${CARD_OWNED}"]`) as HTMLElement).click();
     await until(() => !!document.querySelector('#route-receipt'));
@@ -3010,7 +3010,7 @@ describe('meeting desk (board.html)', () => {
       await poll(window);
       await until(() => document.querySelector('#route-receipt .eyebrow')?.textContent === 'READ');
       expect(document.querySelector('#route-receipt h3')!.textContent).toBe('Read in bwat repo @ ada-mac');
-      expect(cardEl(document, CARD_OWNED)!.querySelector('.badge.queued')!.textContent).toBe('Read');
+      expect(cardEl(document, CARD_OWNED)!.querySelector('.badge.queued')!.textContent).toBe(`Read by bwat repo @ ada-mac · ${new Date('2026-10-21T10:05:00+00:00').toLocaleDateString([], { month: 'short', day: 'numeric' })}`);
     } finally { control.ownedRouted = null; }
   });
 
@@ -3028,6 +3028,9 @@ describe('meeting desk (board.html)', () => {
       await until(() => !!document.querySelector('#route-receipt'));
       expect(document.querySelector('#route-receipt .eyebrow')!.textContent).toBe('QUEUED');
       expect(document.querySelector('#route-receipt h3')!.textContent).toBe('Queued for bwat repo @ ada-mac');
+      // The card in the list says the same, and offers no Done on the earlier send's Read.
+      expect(cardEl(document, CARD_OWNED)!.querySelector('.badge.queued')!.textContent).toBe('Queued for bwat repo @ ada-mac');
+      expect(cardEl(document, CARD_OWNED)!.querySelector('[data-done]')).toBeNull();
     } finally { control.ownedRouted = null; }
   });
 
@@ -4433,5 +4436,182 @@ describe('Reopen in a closed card’s ⋯ menu (board.html)', () => {
     const m = await menu(document);
     expect(m.querySelector('#more-reopen')).toBeNull();
     expect(m.querySelector('#more-edit')!.getAttribute('aria-disabled')).toBeNull();
+  });
+});
+
+// Done on a card in the list once its session has read it: the reader's Done, without opening the card.
+describe('Done on a card Claude has read (board.html)', () => {
+  const READ = [{ handoff_id: HANDOFF, by_member_id: ADA, at: '2026-10-21T10:00:00+00:00', read_at: '2026-10-21T10:05:00+00:00' }];
+  const QUEUED = [{ handoff_id: HANDOFF, by_member_id: ADA, at: '2026-10-21T10:00:00+00:00', read_at: null }];
+  const errSel = '.card-line.err', retrySel = '[data-note-retry]', told = 'Done for everyone: Write the release notes.';
+  const doneOn = (document: Document, id = CARD_OWNED) => document.querySelector<HTMLButtonElement>(`#card-list [data-card="${id}"] [data-done]`);
+  const closes = (server: { calls: Call[] }) => writes(server.calls).filter((c) => c.path.endsWith('/archive'));
+  afterEach(() => { control.ownedRouted = null; });
+  async function shown(more: Parameters<typeof fakeServer>[0] = {}, query = '') {
+    control.ownedRouted = READ;
+    const loaded = await open('board.html', fakeServer(more), query);
+    await until(() => !!doneOn(loaded.document));
+    return loaded;
+  }
+
+  it('offers Done beside a read receipt, and Done closes the card into its row without opening it', async () => {
+    const { document, server } = await shown();
+    const b = doneOn(document)!;
+    expect(b.tagName).toBe('BUTTON');
+    expect(b.type).toBe('button');
+    expect(b.textContent).toBe('Done');
+    expect(b.getAttribute('aria-label')).toBe('Done: Write the release notes');
+    expect(b.getAttribute('aria-disabled')).toBeNull();
+    // Bottom left, styled as Send to Claude is; the Read receipt stays at the top.
+    expect(b.parentElement!.classList.contains('card-foot')).toBe(true);
+    expect(b.parentElement!.firstElementChild).toBe(b);
+    expect(b.className).toBe(cardEl(document, CARD_OWNED)!.querySelector(`[data-send="${CARD_OWNED}"]`)!.className);
+    expect(cardEl(document, CARD_OWNED)!.classList.contains('needs')).toBe(true);
+    expect(cardEl(document, CARD_OWNED)!.querySelector('.card-head .badge.queued')!.textContent).toBe('Read');
+    b.click();
+    await until(() => !!document.querySelector(`#card-list [data-card="${CARD_OWNED}"].slim-row`));
+    expect(closes(server).map((c) => c.body)).toEqual([{ revision: 7, outcome: 'done' }]);
+    expect(said(document)).toBe(told);
+    expect(document.querySelector('#reader')!.textContent).toBe('');
+    expect(document.querySelector(`#card-list [data-card="${CARD_OWNED}"] [data-slim-undo]`)).not.toBeNull();
+  });
+
+  it('keeps the foot open on a card you sent once it is read, so its Done shows', async () => {
+    const { window, document } = await open('board.html');
+    await sendOwned(document);
+    await until(() => said(document) === 'Queued.');
+    expect(cardEl(document, CARD_OWNED)!.classList.contains('needs')).toBe(false);
+    control.ownedRouted = READ;
+    await poll(window);
+    await until(() => !!doneOn(document));
+    expect(cardEl(document, CARD_OWNED)!.classList.contains('needs')).toBe(true);
+  });
+
+  it('names the session alone when the read time cannot be read', async () => {
+    const { window, document } = await open('board.html');
+    await sendOwned(document);
+    await until(() => said(document) === 'Queued.');
+    control.ownedRouted = [{ ...READ[0], read_at: 'not a time' }];
+    await poll(window);
+    await until(() => !!doneOn(document));
+    expect(cardEl(document, CARD_OWNED)!.querySelector('.badge.queued')!.textContent).toBe('Read by bwat repo @ ada-mac');
+  });
+
+  it('offers no Done while the receipt is Queued, nor on a card nobody sent', async () => {
+    control.ownedRouted = QUEUED;
+    const { document } = await open('board.html');
+    await until(() => !!cardEl(document, CARD_OWNED)?.querySelector('.badge.queued'));
+    expect(cardEl(document, CARD_OWNED)!.querySelector('.badge.queued')!.textContent).toBe('Queued');
+    expect(doneOn(document)).toBeNull();
+    expect(doneOn(document, CARD)).toBeNull();
+  });
+
+  it('offers no Done to a viewer nobody signed in', async () => {
+    const { window, document } = await shown();
+    (window as unknown as { eval: (c: string) => unknown }).eval(`viewer='';redraw()`);
+    await until(() => !doneOn(document));
+    expect(cardEl(document, CARD_OWNED)!.querySelector('.badge.queued')!.textContent).toBe('Read');
+  });
+
+  it('moves focus from a pressed Done to the list’s title, not to nothing', async () => {
+    const { document } = await shown();
+    doneOn(document)!.focus();
+    doneOn(document)!.click();
+    await until(() => !!document.querySelector(`#card-list [data-card="${CARD_OWNED}"].slim-row`));
+    expect(document.activeElement!.id).toBe('results-title');
+  });
+
+  it('sends one close for a double click', async () => {
+    const { document, server } = await shown();
+    const b = doneOn(document)!;
+    b.click();
+    b.click();
+    await until(() => said(document) === told);
+    expect(closes(server)).toHaveLength(1);
+  });
+
+  it('says a refused Done on the card, and Try again closes it', async () => {
+    const { document, server } = await shown({ archiveFailsOnce: true });
+    doneOn(document)!.click();
+    await until(() => !!cardEl(document, CARD_OWNED)?.querySelector(errSel));
+    expect(cardEl(document, CARD_OWNED)!.querySelector(errSel)!.firstChild!.textContent).toBe('internal');
+    expect(doneOn(document)).not.toBeNull();
+    cardEl(document, CARD_OWNED)!.querySelector<HTMLButtonElement>(retrySel)!.click();
+    await until(() => said(document) === told);
+    expect(closes(server)).toHaveLength(2);
+  });
+
+  it('names who changed the card first when a Done is stale, and reloads it', async () => {
+    const { window, document, server } = await shown({ archiveStaleOnce: true, staleBy: 'Bob' });
+    ms(window).who = 50;
+    doneOn(document)!.click();
+    await until(() => !!cardEl(document, CARD_OWNED)?.querySelector('.card-line.who'));
+    expect(cardEl(document, CARD_OWNED)!.querySelector('.card-line.who')!.textContent).toContain('Bob');
+    await until(() => !!doneOn(document));
+    doneOn(document)!.click();
+    await until(() => said(document) === told);
+    expect(closes(server).map((c) => c.body)).toEqual([{ revision: 7, outcome: 'done' }, { revision: 8, outcome: 'done' }]);
+  });
+
+  it('offers Done inside Zoom too, and it closes the card into its row', async () => {
+    const { document, server } = await shown({}, '?surface=zoom');
+    expect(doneOn(document)!.getAttribute('aria-label')).toBe('Done: Write the release notes');
+    doneOn(document)!.click();
+    await until(() => !!document.querySelector(`#card-list [data-card="${CARD_OWNED}"].slim-row`));
+    expect(document.querySelector(`#card-list [data-card="${CARD_OWNED}"] [data-slim-undo]`)).not.toBeNull();
+    expect(closes(server)).toHaveLength(1);
+    expect(said(document)).toBe(told);
+  });
+
+  it('offers Done on a to-do only, not on a question Claude has read', async () => {
+    control.ownedRouted = READ;
+    const { document } = await open('board.html', fakeServer({ lifecycle: { routed: READ } }));
+    await until(() => !!doneOn(document));
+    await until(() => cardEl(document, QUESTION_NOW)?.querySelector('.badge.queued')?.textContent === 'Read');
+    expect(doneOn(document, QUESTION_NOW)).toBeNull();
+  });
+
+  it('leaves another card’s open reader where it is', async () => {
+    const { document } = await shown();
+    document.querySelector<HTMLElement>(`[data-open="${CARD}"]`)!.click();
+    await until(() => document.querySelector('#detail-title')?.textContent === 'Ship the release on Friday');
+    doneOn(document)!.click();
+    await until(() => said(document) === told);
+    await until(() => !!document.querySelector(`#card-list [data-card="${CARD_OWNED}"].slim-row`));
+    expect(document.querySelector('#detail-title')!.textContent).toBe('Ship the release on Friday');
+    expect(new URLSearchParams(document.defaultView!.location.search).get('card')).toBe(CARD);
+  });
+
+  it('keeps the reader at Closing… while the card’s Done is on its way, and says its refusal there too', async () => {
+    let answer = () => {};
+    const { document, server } = await shown({ archiveFailsOnce: true, archiveGate: new Promise<void>((r) => { answer = r; }) });
+    document.querySelector<HTMLElement>(`[data-open="${CARD_OWNED}"]`)!.click();
+    await until(() => !!document.querySelector('#do-done'));
+    doneOn(document)!.click();
+    await until(() => closes(server).length === 1);
+    document.querySelector<HTMLButtonElement>('#do-done')!.click();
+    expect(document.querySelector('#action-status')!.textContent).toBe('Closing…');
+    expect(document.querySelector('#do-done')!.getAttribute('aria-disabled')).toBe('true');
+    answer();
+    await until(() => !!document.querySelector(`#reader ${errSel}`));
+    expect(document.querySelector(`#reader ${errSel}`)!.firstChild!.textContent).toBe('internal');
+    expect(document.querySelector('#action-status')!.textContent).toBe('');
+    expect(document.querySelector('#do-done')!.getAttribute('aria-disabled')).toBeNull();
+    expect(closes(server)).toHaveLength(1);
+  });
+
+  it('keeps the reader’s refusal when its Try again finds a close already on its way', async () => {
+    const { window, document, server } = await shown({ archiveFailsOnce: true });
+    document.querySelector<HTMLElement>(`[data-open="${CARD_OWNED}"]`)!.click();
+    await until(() => !!document.querySelector('#do-done'));
+    document.querySelector<HTMLButtonElement>('#do-done')!.click();
+    await until(() => !!document.querySelector(`#reader ${retrySel}`));
+    (window as unknown as { eval: (c: string) => unknown }).eval(`CLOSING.set(${JSON.stringify(CARD_OWNED)},Promise.resolve(NOT_RUN))`);
+    document.querySelector<HTMLButtonElement>(`#reader ${retrySel}`)!.click();
+    await new Promise((r) => setTimeout(r, 200));
+    // Nothing ran, so the refusal and its Try again are still there, as they were.
+    expect((window as unknown as { eval: (c: string) => unknown }).eval(`NOTES.get(${JSON.stringify('reader:' + CARD_OWNED)}).text`)).toBe('internal');
+    expect(document.querySelector(`#reader ${errSel}`)).not.toBeNull();
+    expect(closes(server)).toHaveLength(1);
   });
 });

@@ -6,6 +6,7 @@ import { describeDb } from './db/harness.ts';
 import { ADMIN, ADMIN_ID, OWNER, useRoles } from './people.ts';
 
 const KEY = 'sk-openai-0123456789-abcdefghij-KEY1';
+const SECRET = 'panel-secret-0123456789-abcdefghij-SEC1';
 
 // The admin check that decides a write is made inside the write's own transaction, and
 // waits for a role change in flight: a demotion committed while the save waits on it wins.
@@ -24,6 +25,9 @@ describeDb('an admin demoted while their write waits is refused inside its trans
     { name: 'PUT /console/model-keys/{provider}', method: 'PUT' as const, url: '/console/model-keys/anthropic', payload: { key: KEY } },
     { name: 'DELETE /console/model-keys/{provider}', method: 'DELETE' as const, url: '/console/model-keys/openai', payload: {} },
     { name: 'POST /console/model-keys/{provider}/validate', method: 'POST' as const, url: '/console/model-keys/openai/validate', payload: {} },
+    // The panel secrets take the same in-transaction check.
+    { name: 'PUT /console/secrets/{name}', method: 'PUT' as const, url: '/console/secrets/zoom.webhook_secret', payload: { value: `${SECRET}-NEW` } },
+    { name: 'DELETE /console/secrets/{name}', method: 'DELETE' as const, url: '/console/secrets/zoom.webhook_secret', payload: {} },
   ];
 
   for (const write of writes) {
@@ -31,6 +35,9 @@ describeDb('an admin demoted while their write waits is refused inside its trans
       // A key for DELETE and validate to act on, set by the owner.
       const set = await t.app.inject({ method: 'PUT', url: '/console/model-keys/openai', headers: OWNER, payload: { key: KEY } });
       expect(set.statusCode).toBe(200);
+      // And a panel secret for its PUT to overwrite and its DELETE to remove.
+      const secret = await t.app.inject({ method: 'PUT', url: '/console/secrets/zoom.webhook_secret', headers: OWNER, payload: { value: SECRET } });
+      expect(secret.statusCode).toBe(200);
       const [auditsBefore, versionBefore] = [await auditCount(), await version()];
       const settingsBefore = (await t.pool.query(`SELECT key, value, revision FROM settings ORDER BY key`)).rows;
       const secretsBefore = (await t.pool.query(`SELECT name, ciphertext FROM secrets ORDER BY name`)).rows;

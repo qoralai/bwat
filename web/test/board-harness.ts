@@ -99,6 +99,10 @@ export function fakeServer({
   clarifyStaleOnce = false,
   // T-2's first close is refused as stale: someone else changed it first (a new revision).
   archiveStaleOnce = false,
+  // T-2's first close is refused: the card service answers 500.
+  archiveFailsOnce = false,
+  // T-2's close answers only once this resolves, as a slow card service does.
+  archiveGate = Promise.resolve(),
   // T-1's first reopen (Undo) is refused: the card service answers 500.
   unarchiveFailsOnce = false,
   // T-1's reopen answers only once this resolves, as a slow card service does.
@@ -339,9 +343,11 @@ export function fakeServer({
         : [200, { ...card, owner_member_id: BOB, revision: card.revision + 1 }];
     },
     [`POST /v1/cards/${CARD}/archive`]: () => [200, { ...card, archived: true, revision: 4 }],
-    [`POST /v1/cards/${CARD_OWNED}/archive`]: () => archiveStaleOnce
+    [`POST /v1/cards/${CARD_OWNED}/archive`]: async () => (await archiveGate, archiveStaleOnce
       ? (archiveStaleOnce = false, owned.revision += 1, [409, { error: 'stale_revision', ...(staleBy && { by: staleBy }) }])
-      : [200, { ...owned, archived: true, revision: owned.revision + 1 }],
+      : archiveFailsOnce
+        ? (archiveFailsOnce = false, [500, { error: 'internal' }])
+        : [200, { ...owned, archived: true, revision: owned.revision + 1 }]),
     [`POST /v1/cards/${CARD}/unarchive`]: async () => (await unarchiveGate, unarchiveStaleOnce
       ? (unarchiveStaleOnce = false, card.revision += 1, [409, { error: 'stale_revision', ...(staleBy && { by: staleBy }) }])
       : unarchiveFailsOnce

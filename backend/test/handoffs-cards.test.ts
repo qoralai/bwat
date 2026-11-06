@@ -22,6 +22,8 @@ type Call = { method: string; url: string; authorization: string | undefined; me
 const calls: Call[] = [];
 /** While true the card service answers 503 to everything. */
 let down = false;
+/** While true the card service gives briefs but answers 503 to a routed notice. */
+let routedDown = false;
 /** A card whose brief comes back as JSON null. */
 const NULL_BRIEF = randomUUID();
 /** A card whose brief is a 200 that is not JSON. */
@@ -49,7 +51,7 @@ const fake = createServer(async (req: IncomingMessage, res) => {
   } else if (req.method === 'GET' && /^\/v1\/cards\/[0-9a-f-]+\/brief$/.test(req.url!)) {
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(BRIEF));
   } else if (req.method === 'POST' && /^\/v1\/cards\/[0-9a-f-]+\/(routed|handoff-read)$/.test(req.url!)) {
-    res.writeHead(204).end();
+    res.writeHead(routedDown && req.url!.endsWith('/routed') ? 503 : 204).end();
   } else {
     res.writeHead(404).end();
   }
@@ -59,8 +61,13 @@ const cardsUrl = `http://127.0.0.1:${(fake.address() as AddressInfo).port}`;
 afterAll(() => new Promise<void>((resolve) => fake.close(() => resolve())));
 
 describeDb('POST /handoffs of a card (QOR-4620)', () => {
-  const t = useRoles({ cards: cardsClient(cardsUrl, TOKEN), boardUrl: 'https://bwat.test' });
-  beforeEach(() => void (calls.length = 0));
+  const lines: string[] = [];
+  const t = useRoles({
+    cards: cardsClient(cardsUrl, TOKEN),
+    boardUrl: 'https://bwat.test',
+    logger: { level: 'info', stream: { write: (line: string) => void lines.push(line) } },
+  });
+  beforeEach(() => void (calls.length = lines.length = 0));
 
   it('queues one message whose subject and body are the card brief, then records exactly one routed call by the acting member', async () => {
     const target = await liveSession(t);
@@ -120,6 +127,26 @@ Board: https://bwat.test/`, source_id: card }]);
       expect(fresh.json()).toEqual({ error: 'cards_unavailable' });
     } finally {
       down = false;
+    }
+  });
+
+  it('keeps a queued hand-off when the card service cannot be told it was routed: 202, one message, and a warning naming ids only', async () => {
+    const target = await liveSession(t);
+    const card = randomUUID();
+    routedDown = true;
+    try {
+      const res = await postHandoff(t, { source_kind: 'card', source_id: card, target_session_id: target, request_key: randomUUID() });
+      expect(res.statusCode).toBe(202);
+      expect(res.json()).toEqual({ handoff_id: expect.any(String), status: 'queued' });
+      const { handoff_id } = res.json();
+      const queued = await t.pool.query(`SELECT handoff_id, subject, target_client_session FROM inbox_messages WHERE source_id = $1`, [card]);
+      expect(queued.rows).toEqual([{ handoff_id, subject: BRIEF.subject, target_client_session: target }]);
+      expect(calls.filter((c) => c.url === `/v1/cards/${card}/routed`)).toHaveLength(1);
+      const warned = lines.map((l) => JSON.parse(l)).filter((l) => l.event === 'cards.routed_failed');
+      expect(warned).toEqual([expect.objectContaining({ card_id: card, handoff_id })]);
+      expect(JSON.stringify(warned)).not.toContain(BRIEF.subject);
+    } finally {
+      routedDown = false;
     }
   });
 

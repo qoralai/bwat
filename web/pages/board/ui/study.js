@@ -338,12 +338,19 @@ function cardParts(c,s) {
   const d=draft(c.id), owner=cardOwner(c), oc=ownerColor(owner);
   // A send in flight or failed here says so; otherwise the card's last hand-off, as every
   // viewer sees it: Read once its session marked it read, else Queued.
-  const last=(c.routed||[]).slice(-1)[0], sent=last||d.status==='accepted';
-  const badge=d.status==='unknown'||d.status==='sending'?'Not confirmed':d.status==='failed'?'Not sent':last&&last.read_at?'Read':sent?'Queued':d.brief?'Draft kept':'';
+  // Sent from this browser, it names the session, as the reader's receipt does (renderRoute); a plugin's
+  // targets name none. A send of ours the record does not hold yet (or with no hand-off id) is Queued,
+  // whatever an earlier send's entry says; a draft from before ids were kept takes the newest entry.
+  const routed=c.routed||[],last=routed.slice(-1)[0],sent=last||d.status==='accepted',ours=d.status==='accepted';
+  const newer=ours&&d.handoff!==undefined&&!routed.some(x=>x.handoff_id===d.handoff),read=!!(last&&last.read_at)&&!newer;
+  const to=ours&&!pluginTargets()&&(newer||d.handoff===undefined||last.handoff_id===d.handoff)?d.target||sessionLabel(d.session):'';
+  const unsure=d.status==='unknown'||d.status==='sending',failed=d.status==='failed',receipt=sent&&!unsure&&!failed;
+  const badge=unsure?'Not confirmed':failed?'Not sent'
+    :read?(to?['Read by '+to,readWhen(last.read_at)].filter(Boolean).join(' · '):'Read'):sent?(to?`Queued for ${to}`:'Queued'):d.brief?'Draft kept':'';
   const p={
     classes:[s.card===c.id&&'selected',oc&&'owned'].filter(Boolean),
     style:oc?`--owner:${oc}`:'',
-    chips:badge?[`<span class="badge ${badge==='Queued'||badge==='Read'?'queued':c.bucket}">${esc(badge)}</span>`]:[],
+    chips:badge?[`<span class="badge ${receipt?'queued':c.bucket}">${esc(badge)}</span>`]:[],
     source:`${esc(meetingDate(c.from))} · ${esc(meetingName(c.from))}`,
     badges:'',
     // The card's own line (noteCard), apart from pointers, which lifecycle.js's hook writes whole.
@@ -352,7 +359,9 @@ function cardParts(c,s) {
     // Your own card needs no name in its footer: the board is yours. Nobody's says it with Take it alone.
     foot:owner&&owner!==viewer?`<span class="avatar${oc?' colored':''}" aria-hidden="true">${esc(owner[0].toUpperCase())}</span>${esc(owner)}`:'',
     // An unowned to-do offers only Take it (assign.js); the opened card's Change owner assigns anyone.
-    actions:!owner&&c.bucket==='do'&&!c.closed?{take:takeControlHTML(c)}:cardActions(c),
+    // Once Claude has read a to-do, the reader's Done is on the card too: for any signed-in viewer, as
+    // the reader's is, and recorded as theirs.
+    actions:!owner&&c.bucket==='do'&&!c.closed?{take:takeControlHTML(c)}:{...cardActions(c),done:read&&receipt&&!!viewer&&!c.closed&&c.bucket==='do'},
     answer:null,
   };
   for(const h of HOOKS.card) h.fn(p,c,s);
@@ -361,7 +370,7 @@ function cardParts(c,s) {
   // unanswered question or unowned to-do). Not an auto-apply suggestion: nearly every to-do
   // carries one. Read after the hooks, which may take an action away.
   const send=p.actions&&p.actions.send;
-  if(!c.closed&&(p.needs||(send&&send.show&&!send.why&&d.status!=='accepted'&&d.status!=='sending')))p.classes.push('needs');
+  if(!c.closed&&(p.needs||(p.actions&&p.actions.done)||(send&&send.show&&!send.why&&d.status!=='accepted'&&d.status!=='sending')))p.classes.push('needs');
   return p;
 }
 // The desk's Answer (desk.js p.answer): a card button like the others, but it
@@ -381,8 +390,10 @@ function cardActionsHTML(a,c,answer='') {
   const html=answer+pluginActionsHTML(c)+actionButton('send-'+c.id,sendLabel(),a.send,'card-action',true,` data-send="${esc(c.id)}"`);
   return html?`<span class="card-actions">${html}</span>`:'';
 }
+// The card's Done, at the foot's left: a button like Send to Claude, on its right.
+function cardDoneHTML(a,c){return a&&a.done?actionButton('done-'+c.id,'Done',{show:true},'card-action',false,` data-done="${esc(c.id)}" aria-label="Done: ${esc(c.title)}"`):'';}
 function buildCard(p,c) {
-  return `<article class="card${p.classes.length?' '+p.classes.join(' '):''}" data-card="${esc(c.id)}"${p.style?` style="${p.style}"`:''}><button class="card-open" id="open-${esc(c.id)}" data-open="${esc(c.id)}" aria-label="Open ${esc(c.label||c.id)}: ${esc(c.title)}"><div class="card-head">${p.chips.join('')}</div>${p.titleIcon?`<div class="card-title">${p.titleIcon}<h3>${esc(c.title)}</h3></div>`:`<h3>${esc(c.title)}</h3>`}<p class="card-source${p.source.replace(/<[^>]*>/g,'').trim()?'':' only-code'}">${p.source}${p.source.replace(/<[^>]*>/g,'').trim()?'<span class="card-sep"> · </span>':''}<span class="card-code">${esc(c.label||c.id)}</span></p>${p.badges}</button>${p.ownerMark||''}${p.more||''}${p.note||p.pointers?`<div class="card-rel">${p.note}${p.pointers}</div>`:''}<div class="card-foot"><span class="owner">${p.foot}</span>${cardActionsHTML(p.actions,c,routeHTML(p.answer,c))}</div></article>`;
+  return `<article class="card${p.classes.length?' '+p.classes.join(' '):''}" data-card="${esc(c.id)}"${p.style?` style="${p.style}"`:''}><button class="card-open" id="open-${esc(c.id)}" data-open="${esc(c.id)}" aria-label="Open ${esc(c.label||c.id)}: ${esc(c.title)}"><div class="card-head">${p.chips.join('')}</div>${p.titleIcon?`<div class="card-title">${p.titleIcon}<h3>${esc(c.title)}</h3></div>`:`<h3>${esc(c.title)}</h3>`}<p class="card-source${p.source.replace(/<[^>]*>/g,'').trim()?'':' only-code'}">${p.source}${p.source.replace(/<[^>]*>/g,'').trim()?'<span class="card-sep"> · </span>':''}<span class="card-code">${esc(c.label||c.id)}</span></p>${p.badges}</button>${p.ownerMark||''}${p.more||''}${p.note||p.pointers?`<div class="card-rel">${p.note}${p.pointers}</div>`:''}<div class="card-foot">${cardDoneHTML(p.actions,c)}<span class="owner">${p.foot}</span>${cardActionsHTML(p.actions,c,routeHTML(p.answer,c))}</div></article>`;
 }
 function cardHTML(c,s) { return c.row?slimHTML(c):buildCard(cardParts(c,s),c); }
 function renderReader() {
@@ -428,6 +439,10 @@ document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest
 // session without a router is listed but cannot be picked; the hub's reason
 // shows even beside rows, since rows then mean a stale list.
 // Heard from in the last two minutes is a green dot and no words; older, a grey dot and its age.
+// When a hand-off was read, for its receipt: a clock time today, else the day, so it never goes stale
+// on a board that does not redraw; '' when the record's time is unreadable.
+function readWhen(at){const t=new Date(at);if(isNaN(t))return '';
+  return t.toDateString()===new Date().toDateString()?t.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):t.toLocaleDateString([],{month:'short',day:'numeric'});}
 function sessionAgo(s){return s==null||s<120?'':s<5400?`${Math.round(s/60)}m ago`:`${Math.round(s/3600)}h ago`;}
 const PIN_SVG='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 1.5h4l-.6 4.2 2.6 2.3H4l2.6-2.3z M8 8v6.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>';
 const NOTE_SVG='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
@@ -693,7 +708,8 @@ addHook('sort','return',list=>DELIGHT.placeBack(list,HELD.place));
 async function closeToRow(c,label,undo,say){
   const el=DELIGHT.cardEl(c.id),near=k=>{for(let x=el&&el[k];x;x=x[k])if(x.dataset.card)return x.dataset.card;return null;};
   HELD.place.set(c.id,{before:near('previousElementSibling'),after:near('nextElementSibling'),at:0});
-  DELIGHT.leaving.add(c.id);navigate({card:null},{focus:'results-title'});announce(say);
+  // Its open reader closes; focus on the card itself (its own Done) goes to the list's title, as from the reader.
+  DELIGHT.leaving.add(c.id);if(state().card===c.id)navigate({card:null},{focus:'results-title'});else if(el&&el.contains(document.activeElement))$('#results-title').focus();announce(say);
   await DELIGHT.wait(560);await DELIGHT.fold(c.id);DELIGHT.leaving.delete(c.id);
   ROWS.add(c.id,{card:cardById(c.id)||c,label,undo});
   // Drawn now, not at the caller's refresh a round trip later: the fold has left a gap.
@@ -756,14 +772,28 @@ async function reopenFromMenu(c,inReader=false){if(REOPENING.has(c.id))return NO
       noteCard(key,'err',errText(r),{retry:()=>reopenFromMenu(c,inReader)});
       if(inReader){lineEl(key)?.remove();$('#edit-area')?.insertAdjacentHTML('beforebegin',noteHTML(key));}else redraw();});}
   finally{REOPENING.delete(c.id);}}
+// Done or Won't do, from the reader or the card's own Done: one at a time per card (NOT_RUN while
+// one is on its way). Closed, the card folds into its row with Undo; stale, who changed it first is
+// said on it and it reloads; refused, the reason is returned. `answered` hears the reply first.
+const CLOSING=new Map();
+function closeCard(c,outcome,answered=()=>{}){if(CLOSING.has(c.id))return Promise.resolve(NOT_RUN);
+  const run=(async()=>{const r=await LIVE.post(...archiveRequest(c,outcome,c.version,viewer));answered(r);
+    if(r.ok){const done=outcome==='done';clearError(c.id);clearError('reader:'+c.id);
+      await closeToRow(c,done?'Done':'Won’t do',()=>undoDone(c,r.body.version),(done?'Done for everyone: ':'Won’t do, for everyone: ')+c.title+'.');await refresh(true);return null;}
+    if(r.body&&r.body.stale){changedBy(c.id,r.body);await refresh(true);return null;}
+    return errText(r);})().finally(()=>CLOSING.delete(c.id));
+  CLOSING.set(c.id,run);return run;}
+// The card's Done: refused, said on the card with Try again.
+async function doneFromCard(id){const c=cardById(id);if(!c)return;
+  const err=await closeCard(c,'done');
+  if(err===NOT_RUN)return NOT_RUN;
+  if(err){noteCard(id,'err',err,{retry:()=>doneFromCard(id)});redraw();}}
 function wireActions(c,owner) {
   const status=t=>{const el=$('#action-status'); if(el) el.textContent=t;};
   // The card as the latest refresh has it: an open reader is not re-rendered
   // by a poll, so the closure's `c.version` goes stale and every later edit
   // would be refused.
   const current=()=>cards.find(x=>x.id===c.id)||c;
-  // Someone else changed the card first: say so on it, then reload it (reader too).
-  const stale=async r=>{changedBy(c.id,r.body);await refresh(true);};
   const off=b=>!b||b.getAttribute('aria-disabled')==='true';
   // Refused: said in red under the buttons (read once, 'reader:'+id), with Try again doing it again.
   const failed=(err,retry)=>{noteCard('reader:'+c.id,'err',err,{retry});
@@ -781,16 +811,14 @@ function wireActions(c,owner) {
     showPickDialog(dlg);(dlg.querySelector('[data-person]')||dlg.querySelector('#owner-dialog-close')).focus();};
   // Done / Won't do (A115): one click, then Undo on the row the card leaves.
   const doneB=$('#do-done'),wontB=$('#do-wont');
+  const reopen=()=>{doneB.removeAttribute('aria-disabled');wontB.removeAttribute('aria-disabled');};
+  // Closed: the card is struck through in ink, then folds into its row; it is yours, so it
+  // never lingers as someone else's change.
   const closeAs=async(b,outcome)=>{if(off(b))return;doneB.setAttribute('aria-disabled','true');wontB.setAttribute('aria-disabled','true');status('Closing…');
-    const r=await LIVE.post(...archiveRequest(c,outcome,current().version,viewer));
-    const reopen=()=>{doneB.removeAttribute('aria-disabled');wontB.removeAttribute('aria-disabled');};
-    // Closed: the card is struck through in ink, then folds into its row; it is yours, so it
-    // never lingers as someone else's change.
-    status('');
-    if(r.ok){const done=outcome==='done';clearError('reader:'+c.id);
-      await closeToRow(c,done?'Done':'Won’t do',()=>undoDone(c,r.body.version),(done?'Done for everyone: ':'Won’t do, for everyone: ')+c.title+'.');await refresh(true);}
-    else if(r.body&&r.body.stale){reopen();stale(r);}
-    else {reopen();failed(errText(r),()=>closeAs(b,outcome));}};
+    const err=await closeCard(current(),outcome,r=>{status('');if(!r.ok)reopen();});
+    // A close already on its way (the card's Done): Closing… until it settles, and its refusal said here too.
+    if(err===NOT_RUN){const other=await CLOSING.get(c.id);status('');reopen();if(other&&other!==NOT_RUN)failed(other,()=>closeAs(b,outcome));return NOT_RUN;}
+    if(err)failed(err,()=>closeAs(b,outcome));};
   if(doneB) doneB.onclick=()=>closeAs(doneB,'done');
   if(wontB) wontB.onclick=()=>closeAs(wontB,'wont_do');
 }
@@ -800,6 +828,8 @@ function wireActions(c,owner) {
 function cardActionClick(e) {
   const more=e.target.closest&&e.target.closest('[data-more]');
   if(more){e.stopPropagation();const c=cardById(more.dataset.more);if(!c&&more.id!=='meeting-more')return;if(document.getElementById('more-menu')?._button===more)closeMoreMenu(true);else if(c)openMoreMenu(more,c);else openMeetingMenu(more);return;}
+  const done=e.target.closest&&e.target.closest('[data-done]');
+  if(done){e.stopPropagation();doneFromCard(done.dataset.done);return;}
   const b=e.target.closest&&e.target.closest('[data-send]');
   if(!b) return;
   e.stopPropagation();
