@@ -15,23 +15,23 @@ in and installs the plugin. -->
 
 ## Start here
 
-<!-- bwat:part start title="The easy way: the setup page" -->
-In the bwat folder, run:
+<!-- bwat:part start title="The easy way: let Claude Code install it" -->
+Open Claude Code in any folder and paste this line ([what it follows](https://github.com/qoralai/bwat/blob/main/docs/setup-with-claude.md)):
+
+```text
+Install bwat for me: clone https://github.com/qoralai/bwat.git, then follow its docs/setup-with-claude.md
+```
+
+Claude explains each step, and you type every secret into bwat's setup page.
+
+<!-- bwat:more title="Or by yourself" -->
+In the bwat folder ([Download bwat](#download-bwat) first, and check [Before you start](#before-you-start)), run:
 
 ```sh
 ./bwat setup --web
 ```
 
-It opens a page that walks you through each step and keeps your progress.
-
-<!-- bwat:more title="More detail" -->
-Open the link it prints if no browser opens. Your progress survives a restart: run the same command again to carry on.
-
-Or let Claude Code walk you through it: open Claude Code in any folder and paste this line ([what it follows](https://github.com/qoralai/bwat/blob/main/docs/setup-with-claude.md)):
-
-```text
-Install bwat for me: clone https://github.com/qoralai/bwat.git, then follow its docs/setup-with-claude.md
-```
+It opens a page that walks you through each step and keeps your progress. Open the link it prints if no browser opens. Your progress survives a restart: run the same command again to carry on.
 
 Prefer the terminal alone? Follow this guide's steps as written.
 <!-- bwat:end-more -->
@@ -58,12 +58,11 @@ You'll need:
 
 - Admin on your company's Zoom account.
 - An [OpenRouter](https://openrouter.ai/) account with a few dollars of credit.
-- Docker Desktop, running.
+- Local: Docker Desktop on macOS or Windows, or Docker Engine with Compose on Linux.
 <!-- bwat:flows server -->
 - Permission to create a Google Cloud project in your company's organisation, and a billing account for it.
 - Google Workspace for your company's accounts.
-- A server with Docker and git, a domain whose DNS you can change, and ports 80 and 443 open or a load balancer in front.
-- Building on your cloud's own services instead of one server (a managed database, a load balancer, containers)? [Hosting bwat](hosting.md) lists what bwat needs from any host.
+- Production: a domain whose DNS you can change, and hosting for bwat. For the single-server installer: a server with git, Docker Engine and Compose 2.1 or later, and ports 80 and 443 open or a proxy in front. For ECS or other cloud services, follow [Hosting bwat](hosting.md).
 <!-- bwat:end-flows -->
 
 <!-- bwat:more title="Why each one" -->
@@ -122,6 +121,10 @@ Create `bwat.answers`, the file that holds your setup answers.
 ./bwat prep
 ```
 
+<!-- bwat:flows server -->
+Set `BWAT_MODE=production` in `bwat.answers`: `./bwat prep` writes `developer`, which installs on this computer only.
+<!-- bwat:end-flows -->
+
 > **Never paste a secret into chat.** 🔒 marks a secret: type it into its field, or in a terminal run `./bwat secret KEY`. Check that the last four characters match the vendor's page.
 
 <!-- bwat:more title="More detail" -->
@@ -161,7 +164,7 @@ bwat needs credit on your OpenRouter account. If you have none yet, add some at 
 
 **Cost.** Pay as you go, on your own OpenRouter account. One key serves transcription and the card writer; without credit no cards appear. To cap spending, set a credit limit on the key at OpenRouter. Other model providers are optional; set them in the admin panel.
 
-**Jev.** Jev tells the card writer when something worth a card was said, using the same OpenRouter key. While it is on, recent transcript text and card content go to TypeSafe through OpenRouter, only while OpenRouter lists Jev as zero data retention. The admin panel's **Use Jev** switch overrides this later.
+**Jev.** Jev tells the card writer when something worth a card was said, using the same OpenRouter key. While it is on, recent transcript text and card content go to TypeSafe through OpenRouter, only while OpenRouter lists Jev as zero data retention. The admin panel's **Faster cards** switch, under Settings, Cards, overrides this later.
 <!-- bwat:end-more -->
 <!-- bwat:end -->
 
@@ -194,7 +197,7 @@ Your domain, such as `https://bwat.company.com`.
 `caddy` when bwat gives your domain its own HTTPS (ports 80 and 443 open); `external` behind a load balancer or proxy.
 
 <!-- bwat:more title="More detail" -->
-With ports 80 and 443 open, setup gets and renews the HTTPS certificate. A load balancer or proxy forwards to `127.0.0.1` at the `BWAT_EDGE_PORT` in `bwat.answers` (the first free port from 8080).
+With ports 80 and 443 open, setup gets and renews the HTTPS certificate. A proxy on the same server forwards to `127.0.0.1` at the `BWAT_EDGE_PORT` in `bwat.answers` (the first free port from 8080); that port answers on the server only, so for a load balancer elsewhere, follow [Hosting bwat](hosting.md).
 <!-- bwat:end-more -->
 <!-- bwat:end -->
 
@@ -330,7 +333,7 @@ In Git Bash it prints the Windows path too. Under WSL, run `explorer.exe .` in t
 
    <!-- bwat:shot zoom-build-app -->
 
-2. Upload `zoom-manifest.json` from your bwat folder with <!-- bwat:path zoom-manifest-upload date=2026-10 -->the draft app's manifest upload option<!-- bwat:end-path -->. If Zoom asks how the app is managed, choose **Admin-managed**.
+2. Upload `zoom-manifest.json` from your bwat folder (on a server, copy it to the computer your browser runs on first) with <!-- bwat:path zoom-manifest-upload date=2026-10 -->the draft app's manifest upload option<!-- bwat:end-path -->. If Zoom asks how the app is managed, choose **Admin-managed**.
 
 <!-- bwat:flows local -->
 3. Add the app to your account: in the app, open **Production**, then **Beta Test**, and select **Add app now**, approving it as admin if Zoom asks.
@@ -393,6 +396,10 @@ In the main app, <!-- bwat:path zoom-event-secret -->Features > Access > Event S
 2. Download **Linux x86_64**. bwat is tested with the version in `bot/sdk/zoom-sdk.lock` and tries newer ones. Its file is named like `zoom-meeting-sdk-linux_x86_64-<version>.tar.xz`.
 3. Leave it in your Downloads folder, or choose it on the setup page. bwat builds the meeting bot from it while you carry on.
 
+<!-- bwat:flows server -->
+Copy the file to the server and run `setup/zoom-sdk <the file>` from the bwat folder.
+<!-- bwat:end-flows -->
+
 <!-- bwat:shot zoom-sdk-download -->
 
 <!-- bwat:check bot-built -->
@@ -421,7 +428,7 @@ Under WSL, the Windows Downloads folder works too.
    <!-- bwat:more title="What the manifest set, and reusing an existing app" -->
    The redirect URL and OAuth allow list are the board's address with `/`, the home URL is the board's address with `/board.html`, and the domain allow list has its host and `appssdk.zoom.us`. The board's address is `<address>`.
 
-   bwat needs `getAppContext` and `getMeetingUUID` to identify the current meeting and offer **Invite bot**. `getUserContext` identifies a member who opens the board as a speaker; without it the board still works. The board also uses `appPopout` and `openUrl`. The generated manifest includes all five Zoom App APIs (`appPopout`, `getAppContext`, `getMeetingUUID`, `getUserContext`, `openUrl`) and the scopes `zoomapp:inmeeting` and `user:read:user`.
+   bwat needs `getAppContext` and `getMeetingUUID` to identify the current meeting and offer **Invite bwat**. `getUserContext` identifies a member who opens the board as a speaker; without it the board still works. The board also uses `appPopout` and `openUrl`. The generated manifest includes all five Zoom App APIs (`appPopout`, `getAppContext`, `getMeetingUUID`, `getUserContext`, `openUrl`) and the scopes `zoomapp:inmeeting` and `user:read:user`.
 
    **Reusing an existing app:** updating its URLs does not add missing capabilities. Enable them, save, regenerate the authorization URL, and open that new URL to authorize the app again. Then close and reopen the board inside your meeting. Zoom error **10047** means an API permission was denied; check these capabilities even if the board is already open.
    <!-- bwat:end-more -->
@@ -497,7 +504,7 @@ Client Secret.
 <!-- bwat:more title="What it does" -->
 With this app bwat gets Zoom's local-recording token when it joins a meeting hosted in your Zoom account, so it records and transcribes without the host allowing it; a meeting hosted in another account still asks its host. It also gives the bot the meeting's scheduled end for its five-minute warning. Not needed to try bwat: without it, the host allows bwat to record when Zoom asks. An existing Server-to-Server app in the same account with these scopes also works.
 
-It also lets **Invite bot** on the board inside Zoom look up the meeting.
+It also lets **Invite bwat** on the board inside Zoom look up the meeting.
 <!-- bwat:end-more -->
 <!-- bwat:end -->
 
@@ -579,7 +586,7 @@ The owner is the first person from an allowed domain to sign in. Setup does not 
 <!-- bwat:end-more -->
 <!-- bwat:end -->
 
-<!-- bwat:step id=claude-here flows=local,server title="Connect Claude Code on this computer" -->
+<!-- bwat:step id=claude-here flows=local title="Connect Claude Code on this computer" -->
 bwat hands cards to your Claude Code sessions through its plugin. This adds (or refreshes) the plugin marketplace, installs (or updates) the bwat plugin and points it at `<address>`; the setup page runs it on its own once you have signed in.
 
 ```sh {bwat-run=plugin}
@@ -629,12 +636,12 @@ In the main app, select <!-- bwat:path zoom-beta-test -->, approving it as admin
 <!-- bwat:end -->
 
 <!-- bwat:step id=auto-join flows=server title="Check automatic joining" -->
-Open the admin panel at `<address>/admin`. Its **Overview** tab shows **Automatic joining** and its checks. Start a test meeting, and select **Recheck setup** until it says ready. Until then, the checks name the missing piece. The switches for automatic joining are under **Settings → Meeting bot → Joining**.
+Open the admin panel at `<address>/admin`. Its **Overview** tab shows **Automatic joining** and its checks. Start a test meeting, and select **Recheck setup** until the checks pass. Until then, they name the missing piece. Automatic joining starts off: once the checks pass, turn on **Join meetings on its own** under **Settings → Meeting bot → Joining**.
 
 <!-- bwat:check zoom-ready -->
 
 <!-- bwat:more title="More detail" -->
-Automatic joining defaults on for every meeting in your Zoom account, but waits until the required Zoom setup and a ready bot are verified. An explicit off choice is kept. Validating the event URL alone does not prove meeting events arrive: the main app's event subscription must be for **all account users**, which the manifest sets. The first qualifying meeting event can bring the bot in. One bot attends one meeting at a time.
+Automatic joining starts off. Once an admin turns it on, it covers every meeting in your Zoom account, and still waits until the required Zoom setup and a ready bot are verified. Validating the event URL alone does not prove meeting events arrive: the main app's event subscription must be for **all account users**, which the manifest sets. The first qualifying meeting event can bring the bot in. One bot attends one meeting at a time.
 <!-- bwat:end-more -->
 
 <!-- bwat:end -->
@@ -709,7 +716,7 @@ Anyone in an allowed company Google domain becomes a member on first sign-in. Ad
 Cloud or local recording both work. With the Server-to-Server app, Zoom does not ask the host to allow recording in your account's meetings. Participants see Zoom's recording notice. Keep a signed-in Claude Code session open for **Send to Claude**.
 
 <!-- bwat:flows server -->
-On the board inside Zoom, **Invite bot** brings bwat in with no link, once the Server-to-Server app is set up. Once your Zoom account is linked, bwat can assign a card to the member who said it, even when their Zoom name differs.
+On the board inside Zoom, **Invite bwat** brings bwat in with no link, once the Server-to-Server app is set up. Once your Zoom account is linked, bwat can assign a card to the member who said it, even when their Zoom name differs.
 
 Zoom's join events tell bwat who is speaking. Automatic joining checks the recording setting when the meeting starts: pressing Record later does not bring bwat in; send it the meeting link instead.
 <!-- bwat:end-flows -->
@@ -721,7 +728,7 @@ To make bwat leave before the end, a bwat admin or the meeting's host selects it
 <!-- bwat:end -->
 
 <!-- bwat:part delete-answers title="When every step is done" -->
-Now delete `bwat.answers` from the bwat folder: it holds your secrets in plain text, and bwat keeps its own copy of every value. On the setup page, select **Delete bwat.answers**: it checks everything first. In a terminal, run `rm bwat.answers` from the bwat folder.
+Now delete `bwat.answers` from the bwat folder: it holds your secrets in plain text, and bwat keeps its own copy of every value. The setup page deletes it by itself once bwat runs, the owner has signed in and Claude Code has connected. In a terminal, run `rm bwat.answers` from the bwat folder.
 <!-- bwat:end -->
 
 ## For everyone else
@@ -756,7 +763,7 @@ In a meeting, cards appear on the board as people commit to things. Select **Sen
 | The plugin install says `Host key verification failed` | Your git is set to reach GitHub over SSH, and SSH to GitHub is not working. Fix your SSH key for GitHub, or unset `GIT_SSH_COMMAND`, so the install falls back to HTTPS; then run the install command again. |
 | Plugin sign-in reports a missing Desktop client | Ask the installer to supply both Google Desktop client values and rerun setup. |
 | Send to Claude does nothing | Keep your Claude Code session open and check `/bwat:status`. If the session is missing from the Send to Claude list, type `/bwat:inbox-on` in it. |
-| The bot will not build | Use the exact Linux x86_64 SDK file from the Meeting SDK step; if it is unavailable, report the version setup asks for rather than substituting another. |
+| The bot will not build | Use the Linux x86_64 SDK file from the Meeting SDK step. Setup prefers the version bwat is tested with and builds a newer one with a note; if a newer one fails naming a missing symbol, report that version. |
 
 <!-- bwat:os apple-silicon -->
 | Problem | What to check |

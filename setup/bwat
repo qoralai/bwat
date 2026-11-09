@@ -752,7 +752,7 @@ done
   e_BWAT_SESSION_SECRET=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
 # Jev (QOR-4769) tells the card writer when to write, so cards come within seconds; it
 # uses the model key of step 7. Asked before .env is written, so the backend starts with
-# it; on unless the person says no. The admin panel's Use Jev switch overrides it.
+# it; on unless the person says no. The admin panel's Faster cards switch overrides it.
 if [ -z "$yes" ] && [ -z "$(given BWAT_JEV)" ]; then
   current=on
   [ "$(saved_value BWAT_JEV)" = off ] && current=off
@@ -950,7 +950,7 @@ if [ -z "${e_COMPOSE_PROFILES}" ]; then
   next "Download the Zoom Meeting SDK (the \"Download the Meeting SDK\" step of docs/onboarding.md) and run ./bwat setup again: it builds the meeting bot."
 fi
 if [ "$tier" = production ]; then
-  next "Check Joining in the admin panel, $url/admin: automatic joining defaults on for every meeting in your Zoom account, but waits until the required Zoom setup and a ready bot are verified. An explicit off choice is kept."
+  next "Check Joining in the admin panel, $url/admin: automatic joining starts off. Once the checks pass, turn on Join meetings on its own; it then covers every meeting in your Zoom account."
   next "Start a recorded meeting, or on the board, open Settings (the gear, top right) and paste a meeting link under Send bwat to a meeting."
 else
   next "Open $url: on the board, open Settings (the gear, top right) and paste a meeting link under Send bwat to a meeting; bwat joins it and transcribes. The board shows in this browser, not inside Zoom."

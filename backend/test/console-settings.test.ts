@@ -23,8 +23,8 @@ describeDb('GET /console/settings (QOR-4578)', () => {
     expect(body.settings.display_name).toEqual({ value: null, default: 'bwat', revision: null, updatedAt: null, updatedBy: null });
     // The default is what applies while the key is unset, so the panel can show it.
     expect(body.settings.wait_for_start_min.default).toBe(10);
-    // On by default, subject to the backend's readiness checks.
-    expect(body.settings.auto_join_enabled.default).toBe(true);
+    // Off until an admin turns it on.
+    expect(body.settings.auto_join_enabled.default).toBe(false);
     expect(body.settings.auto_join_require_host.default).toBe(true);
     // QOR-4760: transcripts are kept forever unless an admin turns it off.
     expect(body.settings.transcript_keep_forever.default).toBe(true);

@@ -450,7 +450,8 @@
 :root[data-theme] body[data-view=desk] .desk-column>.card:hover{background:var(--sf-row-hover);box-shadow:none}
 :root[data-theme] body[data-view=desk] .desk-column>.card.selected{background:var(--sf-tint);box-shadow:inset 0 0 0 1.5px var(--sf-tint-line)}
 /* Top, left and bottom only: the right padding is the owner's initial and the menu's (below). */
-:root[data-theme] body[data-view=desk] .desk-column>.card .card-open{padding-top:12px;padding-left:16px;padding-bottom:4px}
+:root[data-theme] body[data-view=desk] .desk-column>.card{--open-pl:16px;--open-pb:4px}
+:root[data-theme] body[data-view=desk] .desk-column>.card .card-open{padding-top:12px;padding-left:var(--open-pl);padding-bottom:var(--open-pb)}
 
 /* The owner on the title line, left of the "⋯" menu. */
 :root[data-theme] .card>.card-owner{position:absolute;top:12px;right:42px;width:20px;height:20px;font-size:9.5px;pointer-events:none}
@@ -466,7 +467,11 @@
 :root[data-theme] .card-title{display:flex;gap:9px;align-items:flex-start}
 :root[data-theme] .card-title .type-icon{flex:none;margin-top:3px}
 :root[data-theme] .card-title h3{flex:1;min-width:0;margin:0}
-:root[data-theme] .card-title~.card-source{padding-left:25px} /* the 16px mark and its 9px gap */
+/* The card's line follows its button (a meeting's name on it is a link): the button's bottom inset moves under a
+   line that shows, and the line lines up under the title's text (the button's inset, the 16px mark and its 9px gap).
+   Its right inset clears the ⋯ menu; the owner's initial sits on the title's row, above it. */
+:root[data-theme] body[data-view=desk] .desk-column>.card:has(>.card-source:not(.only-code)) .card-open{padding-bottom:0}
+:root[data-theme] body[data-view=desk] .desk-column>.card>.card-source{margin:0;padding:3px 46px var(--open-pb) calc(var(--open-pl) + 25px);cursor:pointer}
 /* No ID on a row (the mock-up): the opened card shows it. A line that holds only the ID goes. */
 :root[data-theme] body[data-view=desk] .card .card-source.only-code{display:none}
 :root[data-theme] body[data-view=desk] .card .card-code,:root[data-theme] body[data-view=desk] .card .card-sep{display:none}
@@ -536,7 +541,8 @@
 
 /* Rows as the mock-up packs them, for a mouse; a finger keeps the roomier rows above. */
 @media (pointer:fine){
-  :root[data-theme] body[data-view=desk] .desk-column>.card .card-open{padding-top:9px;padding-left:12px;padding-bottom:2px}
+  :root[data-theme] body[data-view=desk] .desk-column>.card{--open-pl:12px;--open-pb:2px}
+  :root[data-theme] body[data-view=desk] .desk-column>.card .card-open{padding-top:9px}
   :root[data-theme] body[data-view=desk] .desk-column>.card h3{font-size:14px}
   :root[data-theme] body[data-view=desk] .desk-column>.card .card-foot{padding:5px 12px 10px 37px}
   :root[data-theme] body[data-view=desk] .desk-column>.card:has(.card-title) .card-rel :is(.keep-line,.card-line){margin-left:19px}

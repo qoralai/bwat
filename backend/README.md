@@ -613,8 +613,8 @@ secret is used at once. The server's seam is the secret store's `get` (D142; see
 below): a stored `zoom.webhook_secret` wins, and `BWAT_ZOOM_WEBHOOK_SECRET` (or its
 `_FILE` form), read once at startup, answers while none is stored.
 
-Under the environment ceiling, `auto_join_enabled` defaults on when absent or reset
-to JSON null. Explicit false stays off; malformed values fail closed. The backend
+Under the environment ceiling, `auto_join_enabled` is off until an admin saves `true`:
+absent, reset to JSON null, false and malformed values all stay off. The backend
 reads raw settings and caches the initial preference for at most 60 seconds. A save
 invalidates this cache, and a fresh read immediately before claiming catches an off
 choice made while Zoom was answering, including a save on another backend process.

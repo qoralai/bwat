@@ -28,7 +28,7 @@ Or:
 | Board inside Zoom | No: the board shows in your browser | Yes |
 | Joining meetings | Paste a meeting link | Also joins on its own: Zoom's meeting events and auto-join |
 
-Both need a Zoom account you administer, the Zoom Meeting SDK (each company downloads it from Zoom; bwat does not include it), an OpenRouter key, and Docker.
+Both need a Zoom account you administer, the Zoom Meeting SDK (each company downloads it from Zoom; bwat does not include it), an OpenRouter key, and Docker with Compose 2.1 or later.
 
 Inside one install, every member can read every meeting's transcript and cards, not just the meetings they were in: access is team-wide by design. On production, anyone who signs in with Google from one of your allowed domains (`BWAT_ALLOWED_DOMAINS`) becomes a member on their first sign-in, with no invite, so set the allowed domains to the people who may read all of your meetings. Someone who can't sign in sees nothing.
 

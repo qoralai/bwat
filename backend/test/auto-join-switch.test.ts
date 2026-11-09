@@ -31,18 +31,16 @@ describe('the stored auto-join switch (QOR-4576)', () => {
     }
   });
 
-  it("defaults on for absent and reset values", async () => {
-    // The preference defaults on. Readiness separately gates actual meeting claims.
+  it('starts off for absent and reset values', async () => {
+    // Off until an admin turns it on; only an explicit true joins.
     for (const raw of [undefined, null]) {
       const sw = createAutoJoinSwitch(async (key) => (key === AUTO_JOIN_KEY ? raw : undefined), { now: () => 0 });
-      expect(await sw.isOn(), String(raw)).toBe(true);
+      expect(await sw.isOn(), String(raw)).toBe(false);
     }
-    expect(await createAutoJoinSwitch(nothingStored).isOn()).toBe(true);
-  });
-
-  it('requests joining by default while readiness gates actual joins', async () => {
+    expect(switchIsOn(undefined)).toBe(false);
+    expect(switchIsOn(null)).toBe(false);
     expect(await nothingStored(AUTO_JOIN_KEY)).toBeUndefined();
-    expect(await createAutoJoinSwitch(nothingStored).isOn()).toBe(true);
+    expect(await createAutoJoinSwitch(nothingStored).isOn()).toBe(false);
   });
 });
 
@@ -77,8 +75,8 @@ describe('the switch cache (QOR-4576)', () => {
   it('caches an absent value too', async () => {
     const { read, reads } = fakeReader(async () => undefined);
     const sw = createAutoJoinSwitch(read, { now: () => 0 });
-    expect(await sw.isOn()).toBe(true);
-    expect(await sw.isOn()).toBe(true);
+    expect(await sw.isOn()).toBe(false);
+    expect(await sw.isOn()).toBe(false);
     expect(reads()).toBe(1);
   });
 

@@ -140,10 +140,10 @@ describeDb('automatic joining readiness', () => {
     expect(zoom.tokenCalls().length - before).toBe(3);
   });
 
-  it('defaults on but reports waiting, and refuses explicit enabling without prerequisites', async () => {
+  it('starts off, and refuses explicit enabling without prerequisites', async () => {
     const read = (await t.app.inject({ method: 'GET', url: '/console/settings', headers: ADMIN })).json();
-    expect(read.settings.auto_join_enabled.default).toBe(true);
-    expect(read.autoJoin).toMatchObject({ requested: true, effective: false, ready: false });
+    expect(read.settings.auto_join_enabled.default).toBe(false);
+    expect(read.autoJoin).toMatchObject({ requested: false, effective: false, ready: false });
     const saved = await t.app.inject({ method: 'PUT', url: '/console/settings/joining', headers: ADMIN, payload: { changes: { auto_join_enabled: { value: true, expectedRevision: null } } } });
     expect(saved.statusCode).toBe(400);
     expect(saved.json().error).toBe('auto_join_not_ready');
@@ -239,7 +239,7 @@ describeDb('automatic joining readiness', () => {
   });
 });
 
-describeDb('default joining through a real signed webhook', () => {
+describeDb('joining, once an admin turned it on, through a real signed webhook', () => {
   const secrets = zoomSecrets({ ...ZOOM_APP, ...ZOOM_S2S });
   const zoom = fakeZoom();
   const lines: string[] = [];
@@ -264,7 +264,8 @@ describeDb('default joining through a real signed webhook', () => {
     await t.pool.query("UPDATE claims SET state = 'done', ended_at = now() WHERE state <> 'done'");
     await t.pool.query('UPDATE bots SET ready_at = NULL');
     await t.pool.query('DELETE FROM auto_join_delivery');
-    await t.pool.query("UPDATE settings SET value = 'null'::jsonb WHERE key = 'auto_join_enabled'");
+    // Saved on, as an admin does once setup is ready.
+    await t.pool.query("INSERT INTO settings (key, value, revision) VALUES ('auto_join_enabled', 'true', 1) ON CONFLICT (key) DO UPDATE SET value = 'true'");
     t.app.autoJoinSwitch.invalidate();
     await registerBot(t);
     lines.length = 0;
@@ -272,7 +273,7 @@ describeDb('default joining through a real signed webhook', () => {
   const start = (id: number) => zoomEvent('meeting.started', { id, uuid: `occ-${id}` });
   const claims = async (id: number) => (await t.pool.query('SELECT id FROM claims WHERE meeting_number = $1', [String(id)])).rows;
 
-  it('the first verified event opens a non-recording meeting once, with no stored opt-in', async () => {
+  it('the first verified event opens a non-recording meeting once', async () => {
     const event = start(98765000001);
     expect((await deliver(t, event)).json()).toEqual({ status: 'meeting_lookup' });
     expect(await lookupLogged({ lines })).toMatchObject({ outcome: 'claim_opened' });

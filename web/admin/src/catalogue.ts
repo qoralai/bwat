@@ -33,13 +33,13 @@ export interface SettingDef {
 /** The complete key list, in page order. */
 export const SETTINGS: readonly SettingDef[] = [
   // The auto-join pair is enforced by the backend when a meeting starts, not by the bot.
-  // Default on, subject to Zoom and fleet readiness checks.
+  // Off until an admin turns it on; once on, Zoom and fleet readiness checks still gate it.
   {
     key: 'auto_join_enabled',
     section: 'joining',
     label: 'Join meetings on its own',
     kind: { type: 'boolean' },
-    codeDefault: true,
+    codeDefault: false,
     servedTo: [],
   },
   {

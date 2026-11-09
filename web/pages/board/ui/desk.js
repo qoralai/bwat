@@ -47,6 +47,11 @@ addHook('afterRender','desk',function(options={}){const s=state();const chips=$(
  const emptied=!LIVE.api.zoom&&cols.length&&(s.q||s.scope!=='team'||s.person)&&cols.every(k=>!deskGroups[k].length);
  cardListEl().className='desk-columns';cardListEl().innerHTML=emptied?filteredEmptyHTML(s):cols.length?cols.map(k=>{const rows=deskGroups[k];return `<section class="desk-column" aria-labelledby="heading-${k}"><header${LIVE.api.zoom?' class="sr-only"':''}><h2 id="heading-${k}">${deskNames[k]}</h2></header>${noteHTML('col:'+k)}${rows.map(c=>cardHTML(c,s)).join('')||emptyColumnHTML(k,s)}</section>`}).join(''):'<div class="empty"><h2>No columns selected.</h2><p>Choose a type above to bring its cards back. No records were removed.</p></div>';
  cardListEl().querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openCard(b.dataset.open));
+ // A card's meeting name: a plain click does what picking that meeting in the list does; a modified or
+ // middle click is the browser's (a new tab). The rest of its line opens the card, as the button does.
+ cardListEl().querySelectorAll('.card>.card-source').forEach(l=>l.onclick=e=>{const a=e.target.closest('a[data-meeting-link]');
+  if(!a)return openCard(l.closest('[data-card]').dataset.card);if(e.button||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;
+  e.preventDefault();navigate(meetingView(a.dataset.meetingLink),{focus:'page-title'});});
 
  $('#list-end').textContent='';
 });

@@ -3591,6 +3591,47 @@ describe('make room', () => {
     expect(css).toContain('body[data-view=desk] .card .card-sep{display:none}');
   });
 
+  it("links a card's meeting name to that meeting: a click filters, a modified click is the browser's (QOR-5137)", async () => {
+    const { document, window } = await open('board.html', fakeServer(), '?source=all&scope=team');
+    await until(() => !!cardEl(document, CARD_OWNED));
+    const name = () => cardEl(document, CARD_OWNED)!.querySelector<HTMLAnchorElement>('a.card-meeting');
+    const id = name()!.dataset.meetingLink!;
+    // A real link, beside the card's button (a link cannot sit inside one), to the meeting alone.
+    expect(name()!.closest('button')).toBeNull();
+    expect(new URL(name()!.href).searchParams.get('source')).toBe(id);
+    // Dragging the name moves the card, as from anywhere else on it, not the link's address.
+    expect(name()!.getAttribute('draggable')).toBe('false');
+    // Ctrl-click is left to the browser (a new tab): the board stays where it is.
+    const ctrl = new window.MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
+    name()!.dispatchEvent(ctrl);
+    expect(ctrl.defaultPrevented).toBe(false);
+    expect(new URLSearchParams(window.location.search).get('source')).toBe('all');
+    name()!.click();
+    await until(() => new URLSearchParams(window.location.search).get('source') === id);
+    await until(() => !name());
+    expect(new URLSearchParams(window.location.search).get('card')).toBeNull();
+    await until(() => document.activeElement?.id === 'page-title');
+    const css = readFileSync(join(import.meta.dirname, '..', 'pages', 'board', 'ui', 'delight.css'), 'utf8');
+    expect(css).toMatch(/\.card a\.card-meeting:hover,:root\[data-theme\] \.card a\.card-meeting:focus-visible\{background-size:100% 1\.5px/);
+  });
+
+  it("names a meeting the board does not know without a link to it (QOR-5137)", async () => {
+    const { document, window } = await open('board.html', fakeServer(), '?source=all&scope=team');
+    await until(() => !!cardEl(document, CARD_OWNED)?.querySelector('a.card-meeting'));
+    const id = cardEl(document, CARD_OWNED)!.querySelector<HTMLElement>('a.card-meeting')!.dataset.meetingLink!;
+    (window as unknown as { eval: (c: string) => unknown }).eval(`delete sources[${JSON.stringify(id)}];redraw()`);
+    await until(() => !cardEl(document, CARD_OWNED)?.querySelector('a.card-meeting'));
+    expect(cardEl(document, CARD_OWNED)!.querySelector('.card-source')!.textContent).toContain('Meeting unavailable');
+  });
+
+  it("opens the card from the rest of its meeting line, as from its button (QOR-5137)", async () => {
+    const { document, window } = await open('board.html', fakeServer(), '?source=all&scope=team');
+    await until(() => !!cardEl(document, CARD_OWNED));
+    (cardEl(document, CARD_OWNED)!.querySelector('.card-source') as HTMLElement).click();
+    await until(() => new URLSearchParams(window.location.search).get('card') === CARD_OWNED);
+    expect(new URLSearchParams(window.location.search).get('source')).toBe('all');
+  });
+
   it('11 · in Zoom, a signed-in name is the header’s initial only: the name’s button lies invisible over it', () => {
     const css = readFileSync(join(import.meta.dirname, '..', 'pages', 'board', 'ui', 'soft.css'), 'utf8');
     const rule = /body\.surface-zoom \.viewer-label\.locked \.viewer-name\{([^}]*)\}/.exec(css)?.[1] ?? '';
@@ -3646,7 +3687,7 @@ describe('saying it once', () => {
     expect(face.textContent).not.toMatch(/Clarified|Answered(?! by)/);
     expect(face.querySelector('.type-icon')!.getAttribute('data-answered')).toBeNull();
     expect(face.classList.contains('answered')).toBe(true);
-    expect(css('t4/lifecycle.css')).toMatch(/\.card\.answered>:is\(\.card-open,\.card-rel\)\{opacity:\.55\}/);
+    expect(css('t4/lifecycle.css')).toMatch(/\.card\.answered>:is\(\.card-open,\.card-source,\.card-rel\)\{opacity:\.55\}/);
   });
 
   it('dims a question answered in words alone, with no card to name', async () => {

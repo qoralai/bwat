@@ -13,7 +13,7 @@ services:
       BWAT_TRUST_PROXY: 172.16.0.0/12
       # The bot's name in meetings, asked by setup; the admin panel can change it.
       BWAT_BOT_NAME: ${BWAT_BOT_NAME:-bwat}
-      # Jev, asked by setup: off turns it off until the admin panel's Use Jev turns it on (QOR-4769).
+      # Jev, asked by setup: off turns it off until the admin panel's Faster cards turns it on (QOR-4769).
       BWAT_JEV: ${BWAT_JEV:-}
     restart: unless-stopped
 

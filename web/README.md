@@ -157,7 +157,7 @@ documents its own web side in `plugins/<name>/README.md`.
 The Zoom meeting board shows whether its bot is absent, queued, joining, waiting for
 admission, or no longer reporting; the banner disappears once it joins.
 Any linked, active member can select
-**Invite bot**. The backend verifies a fresh Zoom app context against that member,
+**Invite bwat**. The backend verifies a fresh Zoom app context against that member,
 looks up the occurrence with the installation's Server-to-Server OAuth app, and
 passes the join details to the allocator. No invitation link needs to be pasted;
 passcodes are never returned to the board. Duplicate requests share one claim.

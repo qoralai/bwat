@@ -195,7 +195,7 @@ The admin's card size (`cards_granularity`) adds one paragraph to the writer's r
 so the prompt is the one the writer always had. It does not move Jev's thresholds.
 
 Without Jev, a live meeting is read when 30 lines wait or 60 s after its last read. With
-Jev (Use Jev on, every endpoint of its model on OpenRouter's zero-data-retention list, and
+Jev (Faster cards on, every endpoint of its model on OpenRouter's zero-data-retention list, and
 a key), a meeting is read on its first window, at its end, when more than 200 lines wait,
 when its oldest unread line has waited the deadline, or when Jev scores the new lines at
 the threshold or above. Jev is asked at most every 5 s per meeting, only after new lines,

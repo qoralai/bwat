@@ -139,6 +139,12 @@ body.surface-zoom .brand .brand-lens{width:24px;height:24px}
 .brand-lens.offline .lens-arc{fill:transparent;stroke:#808690;stroke-width:3;stroke-dasharray:4 3}
 body.offline #card-list{opacity:.6;transition:opacity .3s}
 
+/* A card's meeting name, on a view of several meetings: a blue underline draws in under it on hover,
+   saying it filters the board to that meeting (desk.js). Blue: the filter is yours. */
+:root[data-theme] .card a.card-meeting{color:inherit;text-decoration:none;background:linear-gradient(var(--sf-accent),var(--sf-accent)) no-repeat 0 100%/0 1.5px;transition:background-size .18s ease-out}
+:root[data-theme] .card a.card-meeting:hover,:root[data-theme] .card a.card-meeting:focus-visible{background-size:100% 1.5px;color:var(--sf-accent-ink)}
+:root[data-theme] .card a.card-meeting:focus-visible{outline:2px solid var(--sf-accent);outline-offset:2px;border-radius:2px}
+
 @media (prefers-reduced-motion:reduce){
   .brand-lens.ring .lens-arc,.card.is-new,.card.is-new:has(.type-icon[data-type=decided]),.quote-hl.sweep,
   .card.inking h3,.card.inking .type-icon .ti-g,.send-ghost,.badge.queued.arrive,
@@ -148,5 +154,5 @@ body.offline #card-list{opacity:.6;transition:opacity .3s}
   .send-ghost,.card.lingering::after,.slim-drain{display:none}
   .live-pill.quiet .live-pill-dot{animation-name:delight-dot-fade;animation-duration:.3s}
   :root[data-theme] .card.folding,:root[data-theme] .card-line.folding{transition:opacity .3s}
-  .app-header>.whisper,body.offline #card-list{transition:none}
+  .app-header>.whisper,body.offline #card-list,:root[data-theme] .card a.card-meeting{transition:none}
 }

@@ -182,8 +182,8 @@ function storeSwitch(t: TestApp, value: string) {
 describeDb('meeting.started on a fresh install (QOR-4576)', () => {
   const t = useZoomApp({ authenticatePerson: signedIn, zoom: ON, autoJoinCacheMs: 0 });
 
-  it('opens nothing on an unconfigured fresh install', async () => {
-    expect((await deliver(t, started(230000009, 'occ-9'))).json()).toEqual({ status: 'recording_unknown' });
+  it('opens nothing on a fresh install: joining starts off', async () => {
+    expect((await deliver(t, started(230000009, 'occ-9'))).json()).toEqual({ status: 'switched_off' });
     expect(await claimsFor(t, '230000009')).toEqual([]);
   });
 });

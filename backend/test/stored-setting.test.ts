@@ -21,7 +21,7 @@ describeDb('readStoredSetting (QOR-4578)', () => {
     });
 
   it('reads undefined for a key never saved, never the catalogue default', async () => {
-    expect(SETTINGS.find((s) => s.key === 'auto_join_enabled')?.codeDefault).toBe(true);
+    expect(SETTINGS.find((s) => s.key === 'auto_join_enabled')?.codeDefault).toBe(false);
     expect(await readStoredSetting(t.pool, 'auto_join_enabled')).toBeUndefined();
   });
 

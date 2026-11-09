@@ -64,6 +64,12 @@ describe('the card size', () => {
   });
 });
 
+describe('joining meetings on its own', () => {
+  it('is off until an admin turns it on', () => {
+    expect(settingDef('auto_join_enabled')?.codeDefault).toBe(false);
+  });
+});
+
 describe('the meeting chat posts', () => {
   it('are off until an admin turns them on', () => {
     expect(['chat_posts_enabled', 'chat_agenda_enabled'].map((key) => settingDef(key)?.codeDefault)).toEqual([false, false]);

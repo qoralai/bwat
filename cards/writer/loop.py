@@ -36,7 +36,7 @@ ETag covers all of it, so only a change is a new answer). The next pass tells wh
 model now answers. Nothing retries on a timer: by decision, a model-gone 404 waits for a
 person, and the new-answer rule is the one safety net.
 
-When Jev is available for a meeting (QOR-4769: Use Jev on, the backend found every
+When Jev is available for a meeting (QOR-4769: Faster cards on, the backend found every
 endpoint of its model on OpenRouter's zero-data-retention list, and a key for it), the
 meeting is not read on the cadence above. It is read on its first window, at its end, when
 more than 200 lines wait (in 200-line windows), when its oldest unread line has waited the
@@ -494,7 +494,7 @@ class WriterLoop:
 
 def settings_of(body):
     """GET /v1/cards/settings as the writer uses it. `jev` is None unless Jev may be asked:
-    Use Jev on, every endpoint of its model keeps no data (zdr.jev), and a key for it."""
+    Faster cards on, every endpoint of its model keeps no data (zdr.jev), and a key for it."""
     jev = body.get("settings") or {}
     available = (jev.get("jev_enabled") is True and (body.get("zdr") or {}).get("jev") is True
                  and body.get("jev_api_key"))

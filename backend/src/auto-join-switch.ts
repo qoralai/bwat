@@ -22,15 +22,15 @@ export const AUTO_JOIN_REQUIRE_HOST_KEY = 'auto_join_require_host';
  */
 export type ReadAutoJoinSwitch = (key: string) => Promise<unknown>;
 
-/** A reader with nothing stored: joining is requested, subject to readiness and env. */
+/** A reader with nothing stored: joining is off until an admin turns it on. */
 export const nothingStored: ReadAutoJoinSwitch = async () => undefined;
 
 /**
- * Joining defaults on when unset. Explicit false and malformed values stay off.
+ * Joining is on only when an admin saved true. Unset, reset, false and malformed values stay off.
  * Readiness is checked separately before any automatic claim is created.
  */
 export function switchIsOn(value: unknown): boolean {
-  return value === true || value === undefined || value === null;
+  return value === true;
 }
 
 /**

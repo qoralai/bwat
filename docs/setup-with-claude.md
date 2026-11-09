@@ -37,6 +37,9 @@ path of the folder bwat is cloned into (part 4).
 
 ### Rules for the whole install
 
+- **This computer only.** If they want bwat for their team, stop: this guide installs bwat on
+  this computer. Ask where bwat will run, then follow the production steps of
+  docs/onboarding.md (For the installer) on that server.
 - **Explain, then act.** Before each step, say in one or two plain sentences what it is
   for and what will happen. Avoid jargon; when you must use a word like Docker, say what
   it is.
@@ -205,6 +208,7 @@ run_command setup. Then:
 The page shows the sign-in code once. Tell the person to keep it somewhere safe, such as
 a password manager: they need it again to sign in from Claude Code.
 - claude-here: Connect Claude Code on this computer. This adds (or refreshes) the plugin marketplace, installs (or updates) the bwat plugin and points it at `<address>`; the setup page runs it on its own once you have signed in.
+  (only for: Try it on this computer (local))
   (ticks itself when a Claude Code session signed in to bwat has checked in with it)
 ```
 

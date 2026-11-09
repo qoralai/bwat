@@ -162,6 +162,8 @@ function state() {
     // stays so while one of them is open. weeks.js and zoomscope.js set it.
     days:params.get('days')==='today'?'today':''};
 }
+// One meeting alone, as the meetings list and a card's meeting name open it.
+function meetingView(id) { return {source:id,card:null,q:null}; }
 function url(changes) {
   const q=new URLSearchParams(location.search);
   // Choosing what the board shows leaves a plugin's page (ui/plugins.js), unless it names one.
@@ -312,7 +314,7 @@ function renderBase({keepReader=false}={}) {
   // it. Grouped by the date itself, newest first: `at` and the calendar `date`
   // can disagree (UTC capture names), so sorting by `at` alone could split a
   // day. Each link names its day for screen readers (aria-describedby).
-  const meetingLink=(id,name,small,n,day,current=s.source===id)=>`<a href="${esc(url({source:id,card:null,q:null}))}" data-meeting="${esc(id)}" aria-current="${current}"${day?` aria-describedby="${day}"`:''}><span>${esc(name)}${small?`<small>${esc(small)}</small>`:''}</span><b>${n}</b></a>`;
+  const meetingLink=(id,name,small,n,day,current=s.source===id)=>`<a href="${esc(url(meetingView(id)))}" data-meeting="${esc(id)}" aria-current="${current}"${day?` aria-describedby="${day}"`:''}><span>${esc(name)}${small?`<small>${esc(small)}</small>`:''}</span><b>${n}</b></a>`;
   const days=new Map();
   for(const [id,m] of listed.sort(LIVE.byAtDesc)){const k=m.date||'Date unavailable';if(!days.has(k))days.set(k,[]);days.get(k).push(id);}
   // Today: the top link is all of today's meetings (the ?when=today window).
@@ -324,7 +326,7 @@ function renderBase({keepReader=false}={}) {
   for(const scope of ['mine','team','unassigned']) $('#scope-'+scope).setAttribute('aria-pressed',s.scope===scope);
   if(document.activeElement!==$('#search')) $('#search').value=s.q;
   if(!keepReader) renderReader();
-  $('#meeting-links').querySelectorAll('a').forEach(a=>a.onclick=e=>{e.preventDefault();navigate(todayOnly&&a.dataset.meeting==='all'?{source:null,when:'today',card:null,q:null}:{source:a.dataset.meeting,card:null,q:null},{focus:'page-title'});});
+  $('#meeting-links').querySelectorAll('a').forEach(a=>a.onclick=e=>{e.preventDefault();navigate(todayOnly&&a.dataset.meeting==='all'?{source:null,when:'today',card:null,q:null}:meetingView(a.dataset.meeting),{focus:'page-title'});});
 }
 // A card is its parts. `card` hooks (desk 10, lifecycle 20) edit
 // them; buildCard is the one place that turns parts into markup -- no more
@@ -351,7 +353,9 @@ function cardParts(c,s) {
     classes:[s.card===c.id&&'selected',oc&&'owned'].filter(Boolean),
     style:oc?`--owner:${oc}`:'',
     chips:badge?[`<span class="badge ${receipt?'queued':c.bucket}">${esc(badge)}</span>`]:[],
-    source:`${esc(meetingDate(c.from))} · ${esc(meetingName(c.from))}`,
+    // The meeting's name is a link to that meeting alone (desk.js), when the board knows the meeting;
+    // one-meeting views drop the line.
+    source:`${esc(meetingDate(c.from))} · ${sources[c.from]?`<a class="card-meeting" draggable="false" href="${esc(url(meetingView(c.from)))}" data-meeting-link="${esc(c.from)}">${esc(meetingName(c.from))}</a>`:esc(meetingName(c.from))}`,
     badges:'',
     // The card's own line (noteCard), apart from pointers, which lifecycle.js's hook writes whole.
     note:noteHTML(c.id),
@@ -393,7 +397,10 @@ function cardActionsHTML(a,c,answer='') {
 // The card's Done, at the foot's left: a button like Send to Claude, on its right.
 function cardDoneHTML(a,c){return a&&a.done?actionButton('done-'+c.id,'Done',{show:true},'card-action',false,` data-done="${esc(c.id)}" aria-label="Done: ${esc(c.title)}"`):'';}
 function buildCard(p,c) {
-  return `<article class="card${p.classes.length?' '+p.classes.join(' '):''}" data-card="${esc(c.id)}"${p.style?` style="${p.style}"`:''}><button class="card-open" id="open-${esc(c.id)}" data-open="${esc(c.id)}" aria-label="Open ${esc(c.label||c.id)}: ${esc(c.title)}"><div class="card-head">${p.chips.join('')}</div>${p.titleIcon?`<div class="card-title">${p.titleIcon}<h3>${esc(c.title)}</h3></div>`:`<h3>${esc(c.title)}</h3>`}<p class="card-source${p.source.replace(/<[^>]*>/g,'').trim()?'':' only-code'}">${p.source}${p.source.replace(/<[^>]*>/g,'').trim()?'<span class="card-sep"> · </span>':''}<span class="card-code">${esc(c.label||c.id)}</span></p>${p.badges}</button>${p.ownerMark||''}${p.more||''}${p.note||p.pointers?`<div class="card-rel">${p.note}${p.pointers}</div>`:''}<div class="card-foot">${cardDoneHTML(p.actions,c)}<span class="owner">${p.foot}</span>${cardActionsHTML(p.actions,c,routeHTML(p.answer,c))}</div></article>`;
+  // The card's line follows its button: a meeting's name on it is a link, which a button cannot hold.
+  const named=!!p.source.replace(/<[^>]*>/g,'').trim();
+  const line=`<p class="card-source${named?'':' only-code'}">${p.source}${named?'<span class="card-sep"> · </span>':''}<span class="card-code">${esc(c.label||c.id)}</span></p>`;
+  return `<article class="card${p.classes.length?' '+p.classes.join(' '):''}" data-card="${esc(c.id)}"${p.style?` style="${p.style}"`:''}><button class="card-open" id="open-${esc(c.id)}" data-open="${esc(c.id)}" aria-label="Open ${esc(c.label||c.id)}: ${esc(c.title)}"><div class="card-head">${p.chips.join('')}</div>${p.titleIcon?`<div class="card-title">${p.titleIcon}<h3>${esc(c.title)}</h3></div>`:`<h3>${esc(c.title)}</h3>`}${p.badges}</button>${line}${p.ownerMark||''}${p.more||''}${p.note||p.pointers?`<div class="card-rel">${p.note}${p.pointers}</div>`:''}<div class="card-foot">${cardDoneHTML(p.actions,c)}<span class="owner">${p.foot}</span>${cardActionsHTML(p.actions,c,routeHTML(p.answer,c))}</div></article>`;
 }
 function cardHTML(c,s) { return c.row?slimHTML(c):buildCard(cardParts(c,s),c); }
 function renderReader() {

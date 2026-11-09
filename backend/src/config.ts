@@ -290,7 +290,7 @@ export interface ZoomConfig {
 
 /**
  * Auto-join's env switches, both on unless set to an explicit "off". BWAT_AUTO_JOIN is only
- * a ceiling: the stored switch defaults on but preserves explicit off (see switchIsOn).
+ * a ceiling: the stored switch is off until an admin saves it on (see switchIsOn).
  * Automatic claims also require the installation's Zoom and bot readiness checks.
  */
 export function zoomConfig(env: Env): ZoomConfig {
