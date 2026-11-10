@@ -20,7 +20,7 @@ speaker alone is not a commitment. An owner a person set stays protected.
    A link by email grants what pairing does: that Zoom account then signs in to the
    board inside Zoom as the member, with no pairing code.
 3. Production only: the main app's event subscription (the manifest sets it) and its
-   event secret; see onboarding, [Copy the main app's event secret](onboarding.md#copy-the-main-apps-event-secret).
+   event secret; see onboarding, [Create the main Zoom app](onboarding.md#create-the-main-zoom-app).
 
 Zoom's [join event](https://developers.zoom.us/docs/api/meetings/events/)
 provides both the meeting-scoped `user_id` and the account's `participant_user_id`.

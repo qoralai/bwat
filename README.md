@@ -20,17 +20,12 @@ Or:
 
 ## Two ways
 
-| | local | production |
-|---|---|---|
-| Where | This computer | AWS or any cloud server |
-| Who uses it | Only you, at `http://localhost:8080` | Your team, at a public domain |
-| Sign-in | A code setup shows you, and your email. No Google | Google, from your company's domains |
-| Board inside Zoom | No: the board shows in your browser | Yes |
-| Joining meetings | Paste a meeting link | Also joins on its own: Zoom's meeting events and auto-join |
+- **local:** on this computer, for you alone. You sign in with a code, and paste a meeting link to bring bwat in.
+- **production:** on a cloud server, for your team. Google sign-in, the board inside Zoom, and bwat joins meetings on its own.
 
-Both need a Zoom account you administer, the Zoom Meeting SDK (each company downloads it from Zoom; bwat does not include it), an OpenRouter key, and Docker with Compose 2.1 or later.
+[Choose where bwat runs](docs/onboarding.md#choose-where-bwat-runs) compares them. [Before you start](docs/onboarding.md#before-you-start) lists what each way needs. Each company downloads the Zoom Meeting SDK itself: see [Download the Meeting SDK](docs/onboarding.md#download-the-meeting-sdk).
 
-Inside one install, every member can read every meeting's transcript and cards, not just the meetings they were in: access is team-wide by design. On production, anyone who signs in with Google from one of your allowed domains (`BWAT_ALLOWED_DOMAINS`) becomes a member on their first sign-in, with no invite, so set the allowed domains to the people who may read all of your meetings. Someone who can't sign in sees nothing.
+Inside one install, every member can read every meeting's transcript and cards, not just the meetings they were in: access is team-wide by design. Who can join a production install: [Who can sign in](docs/onboarding.md#who-can-sign-in). Someone who can't sign in sees nothing.
 
 Jev, on unless you turn it off, makes cards appear within seconds: it sends recent transcript text and card content to TypeSafe through OpenRouter, and only while OpenRouter lists it as zero data retention. [Connect OpenRouter](docs/onboarding.md#connect-openrouter) says how to turn it off.
 

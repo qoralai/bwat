@@ -1,19 +1,22 @@
 # bwat onboarding
 
-bwat listens in your Zoom meeting and turns each thing someone commits to into a card, with the sentence they said it in. Send a card to your own Claude Code session with one button.
+What bwat is, and the one line that installs it with Claude Code: [the README](https://github.com/qoralai/bwat#start-here).
 
-One person installs bwat for the company using Google admin and Zoom admin access. Everyone else signs in and installs the plugin.
+One person installs bwat. On a cloud server that person needs Google admin and Zoom admin access; everyone else signs in and installs the plugin. Where the two ways differ, a step shows them side by side.
 
+- [Choose where bwat runs](#choose-where-bwat-runs)
 - [For the installer](#for-the-installer)
 - [For everyone else](#for-everyone-else)
 - [Your first meeting](#your-first-meeting)
 - [If something doesn't work](#if-something-doesnt-work)
 
+## Choose where bwat runs
+
+{{part modes level=0}}
+
 ## For the installer
 
 {{part start}}
-
-{{part modes}}
 
 {{steps ids=before-you-start,prerequisites}}
 
@@ -37,7 +40,7 @@ One person installs bwat for the company using Google admin and Zoom admin acces
 
 {{part zoom-intro level=0}}
 
-{{steps ids=company,zoom-main,zoom-webhook,zoom-sdk,zoom-board,zoom-board-everyone,zoom-s2s,zoom-account level=4}}
+{{steps ids=company,zoom-main,zoom-sdk,zoom-s2s,zoom-board,zoom-board-everyone,zoom-account level=4}}
 
 ### Run setup
 
@@ -45,15 +48,9 @@ One person installs bwat for the company using Google admin and Zoom admin acces
 
 ### Finish the company setup
 
-{{steps ids=sign-in,claude-here,zoom-validate,zoom-add-main,auto-join level=4}}
+{{steps ids=sign-in,claude-here,zoom-validate,auto-join,share level=4}}
 
-#### Connect your Claude Code
-
-For: Production on a cloud server.
-
-Do [step 3 of For everyone else](#for-everyone-else), as each teammate will: the admin panel's **Members → Connect Claude Code** shows the two commands with your address filled in.
-
-{{steps ids=share level=4}}
+{{part who-can-sign-in level=4}}
 
 {{part delete-answers level=3}}
 

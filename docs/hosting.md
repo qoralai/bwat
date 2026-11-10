@@ -116,11 +116,11 @@ variable at it. Leave `sslmode` and other TLS parameters out of the URLs.
 ## The bot image
 
 Each company builds its own bot image from its own download of the Zoom Meeting SDK, under
-Zoom's licence; the SDK is never in this repository, and the image must never go to a
-public registry.
+Zoom's licence ([Download the Meeting SDK](onboarding.md#download-the-meeting-sdk)
+says what it allows); the image must never go to a public registry.
 
 1. Download the Linux x86_64 Meeting SDK at the version in `bot/sdk/zoom-sdk.lock` from your
-   main Zoom app ([Download the Meeting SDK](onboarding.md#download-the-meeting-sdk)).
+   main Zoom app (the same step).
 2. From the repository root:
 
    ```bash
@@ -156,7 +156,7 @@ below). The bot, cards and web read their environment only.
 | `BWAT_GOOGLE_CLIENT_IDS` | | The web client's id and the desktop client's id, comma-separated |
 | `BWAT_ALLOWED_DOMAINS` | | The company's Google Workspace domains, comma-separated |
 | `BWAT_GOOGLE_DESKTOP_CLIENT_ID`, `BWAT_GOOGLE_DESKTOP_CLIENT_SECRET` | | The plugin's sign-in client; Google treats a desktop client's secret as public |
-| `BWAT_FIRST_OWNER_EMAIL` | | Recommended: only this person can claim the owner. Unset, the first sign-in from an allowed domain does |
+| `BWAT_FIRST_OWNER_EMAIL` | | Recommended: only this person can claim the owner. Unset, the first sign-in from an allowed domain does ([Who can sign in](onboarding.md#who-can-sign-in)) |
 | `BWAT_CARDS_URL` | | The card service on the private network, such as `http://cards:8000` |
 | `BWAT_CARDS_BACKEND_TOKEN` | yes | At least 32 characters; the card service gets the same value |
 | `BWAT_FEED_KEY` | yes | 32 bytes, as 64 hex characters or base64; keys the bots' live feed. Required: with `NODE_ENV=production` the backend refuses to start without it |
@@ -341,8 +341,8 @@ what you measure.
 11. **Bots.** Start the bot fleet; the admin panel's Overview shows each bot ready.
 12. **Finish in Zoom and Claude Code.** As [Finish the company setup](onboarding.md#finish-the-company-setup)
     says: validate the event address, add the main app to the account, check automatic
-    joining in the admin panel, connect Claude Code with `<address>/v1`, and share the
-    address with the team.
+    joining in the admin panel, and share the address with the team, who connect Claude
+    Code as [For everyone else](onboarding.md#for-everyone-else) says.
 
 On every later deploy: build the images, run `migrate`, then roll the backend, cards, web
 and, when no meeting is on, the bots.

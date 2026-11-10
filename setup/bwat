@@ -10,7 +10,7 @@
 #   ./bwat setup --web  opens the onboarding page in a browser, which guides the install
 #                       (setup/onboard); it runs on a Node it finds or fetches
 #   ./bwat onboard mcp  the page's MCP server over stdio, for an LLM guiding the install
-#   ./bwat docs         regenerates docs/onboarding.md from docs/onboarding/master.md
+#   ./bwat docs         regenerates docs/onboarding.md and docs/setup-with-claude.md from docs/onboarding/master.md
 #                       (setup/onboard/generate.ts, on the Node the finder gives)
 #   ./bwat secret KEY   saves the clipboard to KEY's line in bwat.answers (setup/secret)
 #   ./bwat plugin       connects this computer's Claude Code to this install (setup/plugin)

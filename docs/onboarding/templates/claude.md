@@ -1,10 +1,8 @@
 # Install bwat with Claude Code
 
-bwat listens in your Zoom meeting and turns each thing someone commits to into a card,
-with the sentence they said it in. Send a card to your own Claude Code session with one
-button. This page is a guide written for
-Claude Code: Claude reads it and walks you through installing bwat on this computer.
-It explains each step before it does it, and tells you where to click.
+This page is a guide written for Claude Code: Claude reads it and walks you through
+installing bwat on this computer. It explains each step before it does it, and tells you
+where to click. What bwat is: [the README](https://github.com/qoralai/bwat#start-here).
 
 ## Start here
 
@@ -14,19 +12,13 @@ Open Claude Code in any folder and paste this line:
 Install bwat for me: clone https://github.com/qoralai/bwat.git, then follow its docs/setup-with-claude.md
 ```
 
-You need:
-
-- Admin on your company's Zoom account.
-- An [OpenRouter](https://openrouter.ai/) account with a few dollars of credit.
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/), installed and running.
-
-You type every secret, such as a key or a client secret, into bwat's setup page in your
-browser. Never paste one into the chat, even if asked.
+{{steps ids=before-you-start show=text}}
 
 Installing for a team on a cloud server instead? Follow the production steps of
 [bwat onboarding](onboarding.md#for-the-installer) on that server; this guide installs bwat
 on this computer.
 
+<!-- bwat:claude-only -->
 ## For Claude: how to run this install
 
 You are installing bwat on this person's computer. They may not be technical. They
@@ -61,8 +53,8 @@ path of the folder bwat is cloned into (part 4).
   writes the answers file itself, starts the install once OpenRouter and Zoom are done,
   and installs the Claude Code plugin once the person has signed in.
 - **Never download the Zoom Meeting SDK yourself.** The person downloads it from their own
-  Zoom app, and the page finds it in their Downloads folder. Never copy it anywhere,
-  and never use Zoom's name or logo in anything you make.
+  Zoom app, and the page finds it in their Downloads folder. Never copy it anywhere: Zoom's
+  licence is under "Download the Meeting SDK" in `<bwat>/docs/onboarding.md`.
 - **The person does the clicking.** Do not drive their browser. Never open, read or
   screenshot a page that shows a secret: Zoom's App Credentials pages, and OpenRouter's
   key page. Never open openrouter.ai yourself.
@@ -91,11 +83,9 @@ Tell the person, in your own words:
 - bwat will run on this computer only, inside Docker (a program that runs other
   programs in their own sealed box). Only they will use it.
 - You will check this computer, download bwat, connect this Claude Code to bwat's setup
-  page, and restart Claude Code once. Then the setup page shows seven steps, one at a
-  time, in three groups: **OpenRouter** (the AI service that writes the cards, paid from
-  their credit), **Zoom** (name their bwat, make a Zoom app and download Zoom's meeting
-  software), and **bwat** (it installs itself, they sign in, and it connects this Claude
-  Code). At the end they restart Claude Code once more.
+  page, and restart Claude Code once. Then the setup page walks them through seven steps
+  in three groups: **OpenRouter** (the AI service that writes the cards, paid from their
+  credit), **Zoom** and **bwat**. At the end they restart Claude Code once more.
 - They type every secret into the setup page, never into the chat.
 
 Then ask, and wait for each answer:
@@ -200,10 +190,8 @@ The page installs the bwat plugin by itself once the person has signed in: follo
 
 ### 7. Connect Claude Code to bwat
 
-1. Explain: the bwat plugin, which the page just installed, lets this Claude Code receive
-   the cards they send it. Claude Code loads it only when it starts. Ask the person to
-   type `/exit`, then `claude --continue` in the same folder, and say "carry on". Stop
-   here until they are back.
+1. Explain: the bwat plugin lets this Claude Code receive the cards they send it, and
+   Claude Code loads it only when it starts. Restart as in part 4, step 3.
 2. They type `/bwat:login` and finish signing in in the browser with their sign-in code
    and email, then `/bwat:status` to check it shows their account.
 
@@ -214,17 +202,11 @@ keeps running.
 
 ### 8. The first meeting
 
-Walk the person through it:
+Walk the person through it. `<address>` is bwat's address: `get_state` gives it.
 
-1. Schedule a Zoom meeting with **Automatically record meeting** on, and start it as
-   host.
-2. In Claude Code, type `/bwat:join` followed by the meeting link.
-3. Admit bwat from the waiting room, and allow it to record when Zoom asks.
-4. Open bwat's address (`get_state` gave it, and the page's last step showed it) in the
-   browser to see the board.
-5. Say something like "I'll write the migration for the orders table by Friday", and
-   look for its card.
-6. On the card, select **Send to Claude** and pick this session. It wakes up by itself within about 20 seconds with the card: read it with the bwat inbox tools and tell the person what it asks.
+{{steps ids=first-meeting show=text,fields,commands,checks,when}}
 
-Tell them bwat is installed. To run the install again or change an answer later, they
+When the card reaches this session, read it with the bwat inbox tools and tell the person
+what it asks. Tell them bwat is installed. To run the install again or change an answer later, they
 run `./bwat setup --web` in the bwat folder to open the setup page.
+<!-- bwat:end-claude-only -->

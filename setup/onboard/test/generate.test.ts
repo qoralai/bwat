@@ -126,6 +126,117 @@ Servers only.
   });
 });
 
+describe('a page for one way of running bwat', () => {
+  const tiered = parseMaster('docs/test.md', `<!-- bwat:step id=both flows=local,server title="Both" -->
+Everyone does this step now.
+<!-- bwat:flows server -->
+Servers point a domain for this.
+<!-- bwat:more title="Detail" -->
+Server detail.
+<!-- bwat:end-more -->
+<!-- bwat:end-flows -->
+<!-- bwat:flows local -->
+This computer only.
+<!-- bwat:end-flows -->
+<!-- bwat:end -->
+
+<!-- bwat:step id=fold flows=local,server title="Fold" -->
+Fold text for everyone here.
+<!-- bwat:more title="Server fold" -->
+<!-- bwat:flows server -->
+Server folded.
+<!-- bwat:end-flows -->
+<!-- bwat:end-more -->
+<!-- bwat:end -->
+
+<!-- bwat:step id=fence flows=local,server title="Fence" -->
+Run this.
+<!-- bwat:flows server -->
+\`\`\`sh {bwat-run=server-cmd}
+./bwat server-only-command
+\`\`\`
+<!-- bwat:end-flows -->
+<!-- bwat:end -->
+
+<!-- bwat:step id=server-only flows=server title="Server only" -->
+Only on a server.
+<!-- bwat:end -->
+
+<!-- bwat:part intro title="Intro" -->
+Shared words.
+<!-- bwat:flows local -->
+Local words.
+<!-- bwat:end-flows -->
+<!-- bwat:end -->
+`, { keys, shots });
+
+  it("keeps its own way's text, unlabelled, and drops the other way's", () => {
+    const local = render('{{steps level=3}}\n\n{{part intro}}', tiered, 'guide', '', 'local');
+    assert.match(local, /Everyone does this step now\.\n+This computer only\./);
+    assert.match(local, /Local words\./);
+    assert.doesNotMatch(local, /Servers point|Server detail|Only on a server|### Server only/);
+    assert.doesNotMatch(local, /^For[: ]/m);
+    const server = render('{{steps level=3}}', tiered, 'guide', '', 'server');
+    assert.match(server, /Everyone does this step now\.\n+Servers point a domain for this\./);
+    assert.match(server, /### Server only\n\nOnly on a server\./);
+    assert.doesNotMatch(server, /This computer only/);
+    assert.match(server, /<summary>Server fold<\/summary>\n\nServer folded\./);
+    assert.doesNotMatch(local, /Server fold|<details>\n<summary>[^<]*<\/summary>\n\n<\/details>/, 'no fold left empty');
+    assert.doesNotMatch(server, /^For[: ]/m);
+  });
+
+  it("drops a command block that sits in the other way's text", () => {
+    const local = render('{{steps level=3}}', tiered, 'guide', '', 'local');
+    assert.match(local, /Run this\./);
+    assert.doesNotMatch(local, /server-only-command/);
+    const server = render('{{steps level=3}}', tiered, 'guide', '', 'server');
+    assert.match(server, /bwat server-only-command/);
+  });
+
+  it('beside the other way on the page for every way: two columns, local first, with no "For …" label', () => {
+    const text = render('{{steps ids=both level=3}}', tiered, 'guide');
+    assert.match(text, /<table>\n<tr><th>Local<\/th><th>Production<\/th><\/tr>\n<tr>\n<td valign="top">\n\nThis computer only\.\n\n<\/td>\n<td valign="top">\n\nServers point a domain for this\./);
+    assert.match(text, /<summary>Detail<\/summary>\n\nServer detail\.[\s\S]*<\/td>\n<\/tr>\n<\/table>/, 'a fold inside a column stays in it');
+    assert.doesNotMatch(text, /^For[: ]/m);
+  });
+
+  it('inside a list item on the page for every way: labelled, not in columns, so the list goes on', () => {
+    const listed = parseMaster('docs/test.md', `<!-- bwat:step id=listed flows=local,server title="Listed" -->
+1. First.
+   <!-- bwat:flows local -->
+   Local way.
+   <!-- bwat:end-flows -->
+   <!-- bwat:flows server -->
+   Server way.
+   <!-- bwat:end-flows -->
+2. Second.
+<!-- bwat:end -->
+`, { keys, shots });
+    const text = render('{{steps ids=listed level=3}}', listed, 'guide');
+    assert.doesNotMatch(text, /<table>/);
+    assert.match(text, /   For Try it on this computer \(local\):\n\n   Local way\./);
+  });
+
+  it('alone on the page for every way: labelled, not in columns', () => {
+    const text = render('{{steps ids=fold level=3}}', tiered, 'guide');
+    assert.doesNotMatch(text, /<table>/);
+    assert.match(text, /For Production on a cloud server:\n\nServer folded\./);
+  });
+});
+
+describe('docs/onboarding.md', () => {
+  it('is the one guide, for every way, holding every step', () => {
+    const made = outputs().map((o) => o.path);
+    assert.ok(made.includes('docs/onboarding.md'));
+    assert.deepEqual(made.filter((p) => /onboarding-/.test(p)), []);
+    const text = outputs().find((o) => o.path === 'docs/onboarding.md')!.content;
+    const titles = new Set(text.split('\n').filter((l) => /^#{2,6} /.test(l)).map((l) => l.replace(/^#+ /, '')));
+    const untitled = new Set(['first-meeting', ...[...readFileSync(join(ROOT, 'docs/onboarding/master.md'), 'utf8').matchAll(/bwat:place ([\w-]+)/g)].map((m) => m[1]!)]);
+    for (const step of loadMaster().steps) if (!untitled.has(step.id)) assert.ok(titles.has(step.title), step.title);
+    assert.match(text, /<th>Local<\/th><th>Production<\/th>/);
+  });
+});
+
 describe('the guide', () => {
   const text = render('{{steps ids=zoom,board level=4}}', master, 'guide');
 
@@ -143,9 +254,12 @@ describe('the guide', () => {
   });
 
   it('keeps the headings other files link to', () => {
-    const guide = readFileSync(join(ROOT, 'docs/onboarding.md'), 'utf8');
-    for (const heading of ['## For the installer', '## Your first meeting', '## For everyone else', '## Your first meeting', "## If something doesn't work", '#### Create the board app']) {
-      assert.ok(guide.split('\n').includes(heading), heading);
+    const pages = {
+      'docs/onboarding.md': ['## For the installer', '## Your first meeting', '## For everyone else', "## If something doesn't work", '#### Download the Meeting SDK', '#### Create the board app'],
+    };
+    for (const [path, headings] of Object.entries(pages)) {
+      const guide = readFileSync(join(ROOT, path), 'utf8');
+      for (const heading of headings) assert.ok(guide.split('\n').includes(heading), `${path}: ${heading}`);
     }
   });
 
@@ -319,10 +433,11 @@ describe('the Claude guide', () => {
 
 describe('facts the master must keep', () => {
   const guide = readFileSync(join(ROOT, 'docs/onboarding.md'), 'utf8');
-  it('the port rules, the board app APIs and scopes, and the optional providers', () => {
+  // The board app's other APIs and its scopes are left to its manifest, which sets them.
+  it('the port rules, the board app APIs bwat checks, and the optional providers', () => {
     assert.match(guide, /Setup moves bwat to the next free port when something else holds its port/);
     assert.match(guide, /A port you give in the environment [^\n]* is never moved/);
-    for (const name of ['appPopout', 'getAppContext', 'getMeetingUUID', 'getUserContext', 'openUrl', 'zoomapp:inmeeting', 'user:read:user']) assert.ok(guide.includes(`\`${name}\``), name);
+    for (const name of ['getAppContext', 'getMeetingUUID', 'getUserContext']) assert.ok(guide.includes(`\`${name}\``), name);
     assert.match(guide, /Other model providers are optional; set them in the admin panel\./);
   });
 
@@ -354,14 +469,17 @@ describe('reference documents', () => {
   });
 
   it('link only to headings the guide has', () => {
-    const guide = readFileSync(join(ROOT, 'docs/onboarding.md'), 'utf8');
-    const slugs = new Set([...guide.matchAll(/^#{1,6} (.+)$/gm)].map((m) => m[1]!.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s/g, '-')));
+    const slugs = (page: string) => new Set([...readFileSync(join(ROOT, 'docs', page), 'utf8').matchAll(/^#{1,6} (.+)$/gm)].map((m) => m[1]!.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s/g, '-')));
     const bad: string[] = [];
-    for (const file of files) {
+    let links = 0;
+    for (const file of [...files, 'docs/hosting.md', 'docs/speaker-identity.md', 'docs/setup-with-claude.md']) {
       const text = readFileSync(join(ROOT, file), 'utf8');
-      for (const [, target, slug] of text.matchAll(/\]\(((?:\.\.?\/)*(?:docs\/)?onboarding\.md)#([\w-]+)\)/g)) if (!slugs.has(slug!)) bad.push(`${file} links ${target}#${slug}`);
+      for (const [, target, page, slug] of text.matchAll(/\]\(((?:\.\.?\/)*(?:docs\/)?(onboarding\.md))#([\w-]+)\)/g)) {
+        links++;
+        if (!existsSync(join(ROOT, 'docs', page!)) || !slugs(page!).has(slug!)) bad.push(`${file} links ${target}#${slug}`);
+      }
     }
     assert.deepEqual(bad, []);
-    assert.ok(existsSync(join(ROOT, 'docs/onboarding.md')));
+    assert.ok(links > 5, 'the files link to the guide');
   });
 });

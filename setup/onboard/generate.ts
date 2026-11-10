@@ -12,6 +12,7 @@
 //   {{part ID level=3}}       a part of the master under a heading of that depth (0: no heading)
 //   <!-- bwat:snippet NAME --> text <!-- bwat:end-snippet -->   defines text shown nowhere itself;
 //   {{snippet NAME}}          places it (the rules for Claude, once, at the top of every prompt)
+// A page made for one flow (outputs() below) holds only that flow's steps and flows blocks, with no "For …" labels.
 // Between <!-- bwat:keep NAME --> and <!-- bwat:end-keep --> the template holds a hand-written part:
 // the generator copies what the committed output holds there, so a regeneration never touches it.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -49,16 +50,66 @@ function captions(): Map<string, string> {
   return new Map(shots.map((s) => [s.name, s.caption]));
 }
 
-/** A step's or part's Markdown as the guide shows it. */
-function guideBody(markdown: string, show: Set<string>): string {
+/** The line that closes the flows block opened at start. */
+function flowsEnd(lines: string[], start: number): number {
+  let depth = 0;
+  for (let j = start; j < lines.length; j++) {
+    const kind = lines[j]!.match(DIRECTIVE)?.[2];
+    if (kind === 'flows') depth++;
+    else if (kind === 'end-flows' && --depth === 0) return j;
+  }
+  throw new Error(`a bwat:flows block has no bwat:end-flows: ${lines[start]}`);
+}
+
+/** A local block and a production block next to each other, opened at start: their text, local first, and the last line of the pair. */
+function flowPair(lines: string[], start: number): { cells: [string, string]; end: number } | null {
+  const only = (j: number) => lines[j]?.match(DIRECTIVE)?.[2] === 'flows' ? lines[j]!.match(DIRECTIVE)![3]!.trim() : '';
+  const first = only(start);
+  if (first !== 'local' && first !== 'server') return null;
+  const firstEnd = flowsEnd(lines, start);
+  let next = firstEnd + 1;
+  while (next < lines.length && lines[next]!.trim() === '') next++;
+  const second = only(next);
+  if (second !== (first === 'local' ? 'server' : 'local')) return null;
+  const end = flowsEnd(lines, next);
+  const a = lines.slice(start + 1, firstEnd).join('\n');
+  const b = lines.slice(next + 1, end).join('\n');
+  return { cells: first === 'local' ? [a, b] : [b, a], end };
+}
+
+/** A step's or part's Markdown as the guide shows it; on the page for every way, a local block beside a production block
+ * becomes two columns; a page for one flow keeps only that flow's flows blocks, unlabelled. */
+function guideBody(markdown: string, show: Set<string>, flow?: string): string {
   const lines = markdown.split('\n');
   const out: string[] = [];
   let inTable = false;
+  const open: boolean[] = []; // per open flows block on a one-flow page: is it that flow's?
+  const folds: number[] = []; // where each open more block starts in out
   const blank = () => { if (out.length && out[out.length - 1] !== '') out.push(''); };
   const push = (line: string) => { out.push(line); if (line !== '') inTable = false; };
   const alone = (indent: string, text: string) => { blank(); push(indent + text); out.push(''); };
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
+    const d = line.match(DIRECTIVE);
+    if (flow && d?.[2] === 'flows') { open.push(d[3]!.split(',').some((f) => f.trim() === flow)); continue; }
+    if (flow && d?.[2] === 'end-flows') { open.pop(); continue; }
+    if (open.includes(false)) continue;
+    // A table ends the list it sits in, so a pair inside a list item stays as labelled blocks.
+    if (!flow && d?.[2] === 'flows' && !d[1]) {
+      const pair = flowPair(lines, i);
+      if (pair) {
+        const cells = pair.cells.map((cell) => guideBody(cell, show));
+        if (cells.every((c) => c.trim())) {
+          blank();
+          out.push('<table>', '<tr><th>Local</th><th>Production</th></tr>', '<tr>');
+          for (const cell of cells) out.push('<td valign="top">', '', cell, '', '</td>');
+          out.push('</tr>', '</table>', '');
+          inTable = false;
+          i = pair.end;
+          continue;
+        }
+      }
+    }
     const run = line.match(RUN_FENCE);
     if (run) {
       const end = lines.findIndex((l, j) => j > i && /^\s*```\s*$/.test(l));
@@ -70,7 +121,6 @@ function guideBody(markdown: string, show: Set<string>): string {
       i = stop;
       continue;
     }
-    const d = line.match(DIRECTIVE);
     if (!d) { push(line); continue; }
     const [, indent, kind, rest] = d as unknown as [string, string, string, string];
     const value = rest.trim();
@@ -94,8 +144,11 @@ function guideBody(markdown: string, show: Set<string>): string {
       if (show.has('when')) alone(indent, `Only when ${CONDITIONS[value]?.label ?? value}:`);
     } else if (kind === 'more') {
       // GitHub folds it the same way; the blank lines let the Markdown inside render.
-      blank(); push(`${indent}<details>`); push(`${indent}<summary>${escape(attributes(rest).title ?? '')}</summary>`); out.push('');
+      blank(); folds.push(out.length); push(`${indent}<details>`); push(`${indent}<summary>${escape(attributes(rest).title ?? '')}</summary>`); out.push('');
     } else if (kind === 'end-more') {
+      const start = folds.pop()!;
+      // On a one-flow page a fold can hold only another flow's text: then it goes too.
+      if (out.slice(start + 2).every((l) => l.trim() === '')) { out.length = start; continue; }
       blank(); push(`${indent}</details>`); out.push('');
     } else if (kind === 'flows') {
       if (show.has('when')) alone(indent, `For ${value.split(',').map((f) => FLOWS[f.trim() as keyof typeof FLOWS] ?? f).join('; ')}:`);
@@ -109,15 +162,15 @@ function guideBody(markdown: string, show: Set<string>): string {
   return out.join('\n');
 }
 
-function guideStep(step: Step, level: number, show: Set<string>): string {
+function guideStep(step: Step, level: number, show: Set<string>, flow?: string): string {
   const out: string[] = [];
   if (show.has('title')) {
     out.push(`${'#'.repeat(level)} ${step.title}`, '');
-    if (step.flows.length < Object.keys(FLOWS).length) out.push(`For: ${step.flows.map((f) => FLOWS[f as keyof typeof FLOWS]).join('; ')}.`, '');
+    if (!flow && step.flows.length < Object.keys(FLOWS).length) out.push(`For: ${step.flows.map((f) => FLOWS[f as keyof typeof FLOWS]).join('; ')}.`, '');
     if (step.when && show.has('when')) out.push(`Only when ${CONDITIONS[step.when]?.label ?? step.when}.`, '');
   }
   if (step.ask) out.push(`${step.ask} If not, skip this step.`, '');
-  out.push(guideBody(step.markdown, show));
+  out.push(guideBody(step.markdown, show, flow));
   return out.join('\n');
 }
 
@@ -191,8 +244,9 @@ function keptBlocks(committed: string): Map<string, string> {
   return blocks;
 }
 
-/** committed is the output as it stands: keep blocks are copied from it, and the template's own body is the first seed. */
-export function render(template: string, master: Master, format: Format, committed = ''): string {
+/** committed is the output as it stands: keep blocks are copied from it, and the template's own body is the first seed.
+ * flow makes a page for that way of running bwat only: its steps, its flows blocks, and no "For …" labels. */
+export function render(template: string, master: Master, format: Format, committed = '', flow?: keyof typeof FLOWS): string {
   const kept = keptBlocks(committed);
   const snippets = new Map<string, string>();
   const lines: string[] = [];
@@ -243,18 +297,18 @@ export function render(template: string, master: Master, format: Format, committ
       const show = new Set(args.show ? args.show.split(',') : SHOW);
       for (const item of show) if (!SHOW.includes(item)) throw new Error(`slot {{steps}} cannot show ${item}: use ${SHOW.join(', ')}`);
       for (const id of ids ?? []) if (!master.steps.some((s) => s.id === id)) throw new Error(`template names step ${id}, which the master lacks`);
-      const chosen = master.steps.filter((s) => (!ids || ids.includes(s.id)) && (!flows || s.flows.some((f) => flows.includes(f))));
+      const chosen = master.steps.filter((s) => (!ids || ids.includes(s.id)) && (!flows || s.flows.some((f) => flows.includes(f))) && (!flow || s.flows.includes(flow)));
       const slotFormat = args.format ?? format;
       if (!['guide', 'claude-page', 'claude-terminal'].includes(slotFormat)) throw new Error(`slot {{steps}} has a bad format=${slotFormat}: use claude-page or claude-terminal`);
       if (slotFormat !== 'guide') return chosen.map((s) => promptStep(s, slotFormat as 'claude-page' | 'claude-terminal', show, flows)).join('\n');
-      return chosen.map((s) => guideStep(s, level, show)).join('\n\n');
+      return chosen.map((s) => guideStep(s, level, show, flow)).join('\n\n');
     }
     if (kind === 'part') {
       const id = rest.trim().split(/\s/)[0]!;
       const part = master.parts.find((p) => p.id === id);
       if (!part) throw new Error(`template names part ${id}, which the master lacks`);
       const heading = level > 0 ? `${'#'.repeat(level)} ${part.title}\n\n` : '';
-      return heading + guideBody(part.markdown, new Set(SHOW));
+      return heading + guideBody(part.markdown, new Set(SHOW), flow);
     }
     throw new Error(`unknown template slot {{${kind}}}`);
   }).join('\n').replace(/\n{3,}/g, '\n\n');
@@ -274,9 +328,10 @@ export function outputs(): { path: string; content: string }[] {
   const master = loadMaster();
   const template = (name: string) => readFileSync(join(ROOT, 'docs/onboarding/templates', name), 'utf8');
   const committed = (path: string) => (path && existsSync(join(ROOT, path)) ? readFileSync(join(ROOT, path), 'utf8') : '');
-  const made = (name: string, format: Format, path = '') => `${generatedBy(name)}\n${render(template(name), master, format, committed(path)).trim()}\n`;
+  const made = (name: string, format: Format, path = '', flow?: keyof typeof FLOWS) => `${generatedBy(name)}\n${render(template(name), master, format, committed(path), flow).trim()}\n`;
+  // One page for every way of running bwat; Claude Code's guide is for this computer only.
   return [
-    { path: 'docs/setup-with-claude.md', content: made('claude.md', 'guide', 'docs/setup-with-claude.md') },
+    { path: 'docs/setup-with-claude.md', content: made('claude.md', 'guide', 'docs/setup-with-claude.md', 'local') },
     { path: 'docs/onboarding.md', content: made('guide.md', 'guide') },
     { path: 'setup/onboard/paths.tsv', content: pathsTsv(master) },
   ];

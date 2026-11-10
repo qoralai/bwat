@@ -65,7 +65,7 @@ describe('the onboarding API', () => {
   it('the guide serves the master\'s parts and its first step is before-you-start', async () => {
     const body = (await api('/api/guide')).body;
     const parts = body.parts as { id: string; title: string; html: string }[];
-    assert.deepEqual(parts.map((p) => p.id), ['start', 'modes', 'download', 'address-intro', 'google-intro', 'zoom-intro', 'delete-answers', 'teammates', 'troubleshooting']);
+    assert.deepEqual(parts.map((p) => p.id), ['start', 'modes', 'download', 'address-intro', 'google-intro', 'zoom-intro', 'who-can-sign-in', 'delete-answers', 'teammates', 'troubleshooting']);
     assert.ok(parts.every((p) => p.title && p.html && Object.keys(p).length === 3));
     assert.equal((body.steps as { id: string }[])[0]!.id, 'before-you-start');
   });

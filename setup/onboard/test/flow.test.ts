@@ -320,8 +320,8 @@ describe('docs/onboarding/shots/shots.json', () => {
 describe('the master', () => {
   const master = () => loadMaster();
   const IDS = ['prerequisites', 'answers-file', 'address-server', 'company',
-    'google-web', 'google-desktop', 'zoom-main', 'zoom-webhook', 'zoom-sdk', 'zoom-board', 'zoom-board-everyone', 'zoom-s2s',
-    'model-key', 'check-answers', 'install', 'sign-in', 'zoom-validate', 'zoom-add-main', 'zoom-account', 'auto-join',
+    'google-web', 'google-desktop', 'zoom-main', 'zoom-sdk', 'zoom-s2s', 'zoom-board', 'zoom-board-everyone',
+    'model-key', 'check-answers', 'install', 'sign-in', 'zoom-validate', 'zoom-account', 'auto-join',
     'connect-claude', 'share', 'first-meeting'];
 
   it('the master parses with no problems', () => {
@@ -331,7 +331,7 @@ describe('the master', () => {
     const byId = new Map(steps.map((s) => [s.id, s]));
     for (const id of [...IDS, 'before-you-start']) assert.ok(byId.has(id), `step ${id}`);
     assert.deepEqual(byId.get('install')!.runs, [{ id: 'setup', command: './bwat setup -y' }]);
-    assert.deepEqual(parts.map((p) => p.id).sort(), ['address-intro', 'delete-answers', 'download', 'google-intro', 'modes', 'start', 'teammates', 'troubleshooting', 'zoom-intro']);
+    assert.deepEqual(parts.map((p) => p.id).sort(), ['address-intro', 'delete-answers', 'download', 'google-intro', 'modes', 'start', 'teammates', 'troubleshooting', 'who-can-sign-in', 'zoom-intro']);
   });
 
   // Answers no step asks for: the chosen way sets the mode and the tier, and the apps' name is
@@ -361,7 +361,7 @@ describe('the master', () => {
   // The server flow is always production with https, so its steps need no when=.
   it('the board, event and auto-join steps are server-only, with no when=', () => {
     const byId = new Map(master().steps.map((s) => [s.id, s]));
-    for (const id of ['zoom-board', 'zoom-board-everyone', 'zoom-webhook', 'zoom-validate', 'auto-join']) {
+    for (const id of ['zoom-board', 'zoom-board-everyone', 'zoom-validate', 'auto-join']) {
       assert.equal(byId.get(id)!.when, null, id);
       assert.deepEqual(byId.get(id)!.flows, ['server'], id);
     }
