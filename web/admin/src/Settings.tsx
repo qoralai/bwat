@@ -27,12 +27,12 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stri
 // validation names the problem rather than the page quietly dropping it.
 const wholeFrom = (text: string): unknown => (text === '' ? null : /^\d+$/.test(text) ? Number(text) : text);
 
-/** The five places, in order; a member sees only Meeting bot, Cards and Data. */
+/** The five places, in order; a member sees only Meeting bot, Cards and Retention. */
 const PLACES = [
   { id: 'bot', title: 'Meeting bot' },
   { id: 'cards', title: 'Cards' },
   { id: 'models', title: 'Models' },
-  { id: 'data', title: 'Data' },
+  { id: 'data', title: 'Retention' },
   { id: 'connections', title: 'Connections' },
 ] as const;
 type Place = (typeof PLACES)[number]['id'];
@@ -51,6 +51,8 @@ const DRAFT_PLACES: Record<string, Place> = {
   jev_model: 'models',
   transcript_keep_forever: 'data',
   transcript_retention_days: 'data',
+  cards_keep_open_forever: 'data',
+  cards_close_after_days: 'data',
 };
 const DRAFT_KEYS = Object.keys(DRAFT_PLACES);
 /** The places these keys are shown in, by name, in page order: "Meeting bot and Cards". */
@@ -440,53 +442,63 @@ function Editor({ read, reload, page, setPage }: { read: SettingsRead; reload: (
       </>
     );
   } else if (page === 'data') {
-    const forever = Boolean(draft.transcript_keep_forever ?? fallback('transcript_keep_forever'));
-    const days = draft.transcript_retention_days;
+    // A choice between keeping forever and a number of days (the cards one is new).
+    // Forever hides Days, so a change typed there is dropped rather than left to hold Save.
+    const foreverOrDays = (id: string, label: string, foreverKey: string, daysKey: string, afterText: string, daysLabel: string) => {
+      const forever = Boolean(draft[foreverKey] ?? fallback(foreverKey));
+      const days = draft[daysKey];
+      return (
+        <div
+          className={isChanged(foreverKey) || isChanged(daysKey) ? 'setting inline changed' : 'setting inline'}
+          role="group"
+          aria-labelledby={id}
+        >
+          <span id={id} className="setting-label">
+            {label}
+          </span>
+          <span className="choice">
+            <span className="seg">
+              <button
+                type="button"
+                aria-pressed={forever}
+                onClick={() => {
+                  set(foreverKey, true);
+                  set(daysKey, stored(daysKey));
+                }}
+              >
+                Forever
+              </button>
+              <button type="button" aria-pressed={!forever} onClick={() => set(foreverKey, false)}>
+                {afterText}
+              </button>
+            </span>
+            {!forever && (
+              <span className="field">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  aria-label={daysLabel}
+                  value={days == null ? '' : String(days)}
+                  placeholder={String(fallback(daysKey))}
+                  onChange={(e) => set(daysKey, wholeFrom(e.target.value))}
+                />
+                <span className="unit">days</span>
+              </span>
+            )}
+          </span>
+        </div>
+      );
+    };
     body = (
       <>
         <div className="block">
-          <div
-            className={isChanged('transcript_keep_forever') || isChanged('transcript_retention_days') ? 'setting inline changed' : 'setting inline'}
-            role="group"
-            aria-labelledby="keep-transcripts"
-          >
-            <span id="keep-transcripts" className="setting-label">
-              Keep transcripts
-            </span>
-            <span className="choice">
-              <span className="seg">
-                {/* Forever hides Days, so a change typed there is dropped rather than left to hold Save. */}
-                <button
-                  type="button"
-                  aria-pressed={forever}
-                  onClick={() => {
-                    set('transcript_keep_forever', true);
-                    set('transcript_retention_days', stored('transcript_retention_days'));
-                  }}
-                >
-                  Forever
-                </button>
-                <button type="button" aria-pressed={!forever} onClick={() => set('transcript_keep_forever', false)}>
-                  Delete after
-                </button>
-              </span>
-              {!forever && (
-                <span className="field">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    aria-label="Days"
-                    value={days == null ? '' : String(days)}
-                    placeholder={String(fallback('transcript_retention_days'))}
-                    onChange={(e) => set('transcript_retention_days', wholeFrom(e.target.value))}
-                  />
-                  <span className="unit">days</span>
-                </span>
-              )}
-            </span>
-          </div>
+          {foreverOrDays('keep-transcripts', 'Keep transcripts', 'transcript_keep_forever', 'transcript_retention_days', 'Delete after', 'Days')}
         </div>
         <p className="muted">Cards stay. Only the word-for-word transcript is deleted.</p>
+        <div className="block">
+          {foreverOrDays('keep-cards', 'Keep untouched cards open', 'cards_keep_open_forever', 'cards_close_after_days', 'Close after', 'Days before a card closes')}
+        </div>
+        <p className="muted">A card nobody acts on for that long closes as no response. Over its last 5 days it says when, with a Keep button.</p>
       </>
     );
   } else {

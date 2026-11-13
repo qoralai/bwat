@@ -40,7 +40,12 @@ After the final transcript read, a separate worker compares up to 200 recent car
 within a bounded prompt; a busy board may leave some eligible duplicates unexamined.
 Both cards must have been created within the preceding 120 hours. Same-type duplicates
 keep the older title and ID and gain new context and evidence. Different types may be
-linked as related. Cards with different owners are not merged automatically.
+linked as related. Cards owned by different people are never merged, by the clean-up or by a
+person; when only one of the pair has an owner, the card kept takes that owner (the clean-up
+never gives one to a card whose owner a person cleared). That owner is bwat's own change, so the
+room may still give the card another, unless a person chose it on the merged card: then it stays
+theirs. Undo merge takes it back, unless
+it has changed since or its owner has taken the card on since.
 Duplicate discovery sees candidate context; a separate summary call sees only the
 newer card's base content. Each proposed merge therefore needs an additional model
 call, preventing another meeting's context from being copied into its summary.
@@ -83,8 +88,11 @@ is `gone` and that side clears. The gateway must route `/v1/cards/*/hint/*` to c
 
 ## Keeping a card
 
-A live card nobody acts on for 10 days closes as no response; from day 5 it carries
-`expires_in_days`. Any action of a person's starts those 10 days again. `POST
+By default a live card stays open until a person closes it. An admin can choose, in Settings,
+Retention, to close untouched cards after a number of days (`cards_keep_open_forever` off and
+`cards_close_after_days`, served with the card service's settings): a live card nobody acts on
+for that long closes as no response, and over its last 5 days it carries `expires_in_days`. Any
+action of a person's starts those days again. `POST
 /v1/cards/{id}/keep {"revision"}` is Keep: a person's action like any other, recorded as their
 `card.keep` event, and it keeps the card on the board until a person closes it. A card kept
 once never expires and never carries `expires_in_days` again (the owner keeping it accepts it,

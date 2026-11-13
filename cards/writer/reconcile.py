@@ -6,7 +6,7 @@ import logging
 from psycopg.rows import dict_row
 
 from writer.home import carry_by_merge, uncarry_merge
-from writer.lifecycle import CURRENT, ON_BOARD, acted, event
+from writer.lifecycle import CURRENT, ON_BOARD, acted, event, owner_set
 from writer.limits import RECENT_HOURS
 from writer.revisions import add_context
 
@@ -108,6 +108,17 @@ def lock_pair(conn, board, ids):
     return rows
 
 
+def owned(card):
+    return card['owner_member_id'] is not None or card['owner_name'] is not None
+
+
+def owners_differ(a, b):
+    """Both cards are owned, and not by the same member or the same name."""
+    same = (a['owner_member_id'] is not None and a['owner_member_id'] == b['owner_member_id']) or (
+        (a['owner_member_id'], a['owner_name']) == (b['owner_member_id'], b['owner_name']))
+    return owned(a) and owned(b) and not same
+
+
 def survivor(older, newer):
     """Which of a duplicate pair, oldest first, the clean-up keeps, and which it merges into
     it: the older card, unless only the newer one is live (a person acted on it)."""
@@ -127,11 +138,17 @@ def apply_merge(conn, proposal, board, member_id=None):
         raise ValueError('older card must survive')
     if older['kind'] != newer['kind']:
         raise ValueError('different kinds')
-    # An owner cannot silently disappear into another card.
-    if (older['owner_member_id'], older['owner_name']) != (newer['owner_member_id'], newer['owner_name']):
-        raise ValueError('different ownership')
     ids = sorted([older['id'], newer['id']])
     rows = lock_pair(conn, board, ids)
+    # Owners as they are now, read under the lock: an earlier merge of this clean-up may have
+    # given the card kept one.
+    owners = {cid: {'owner_member_id': member, 'owner_name': name} for cid, member, name in conn.execute(
+        'SELECT id::text, owner_member_id::text, owner_name FROM cards.cards WHERE id = ANY(%s::uuid[])', [ids])}
+    older, newer = older | owners[older['id']], newer | owners[newer['id']]
+    # An owner cannot silently disappear into another card: two cards owned by different
+    # people never merge, and when only one card is owned the card kept takes that owner.
+    if owners_differ(older, newer):
+        raise ValueError('different ownership')
     # A person said these two are not duplicates (QOR-4770): the pair never merges.
     if dismissed(conn, ids, 'not_duplicate'):
         raise ValueError('dismissed')
@@ -144,18 +161,76 @@ def apply_merge(conn, proposal, board, member_id=None):
     # The clean-up hides only a draft: once a person has acted on a card, bwat never merges
     # it away. A person's Merge now keeps the live card too (hints.act picks the pair by
     # survivor()); only of two live cards does it hide one, the newer.
-    if member_id is None and {cid: status for cid, _, _, status, _ in rows}[newer['id']] != 'draft':
+    if member_id is None and {cid: status for cid, _, _, status, *_ in rows}[newer['id']] != 'draft':
         raise ValueError('live card')
+    takes_owner = owned(newer) and not owned(older)
+    # The clean-up never gives an owner to a card a person left unowned (window.claim_owner).
+    if takes_owner and member_id is None and conn.execute(
+            # `at` orders a card's owner events only while no path writes two for one card in one
+            # transaction, which none does: within one, they tie and the uuid breaks it arbitrarily.
+            '''SELECT actor_kind = 'member' FROM cards.card_events WHERE card_id = %s AND action = 'card.owner'
+               ORDER BY at DESC, id DESC LIMIT 1''', [older['id']]).fetchone() == (True,):
+        raise ValueError('owner set by a person')
     link = conn.execute('''INSERT INTO cards.card_links (meeting_id, from_card_id, to_card_id, kind)
                            VALUES (%s, %s, %s, 'merges') RETURNING id''',
                         [newer['meeting_id'], newer['id'], older['id']]).fetchone()[0]
     add_context(conn, older['id'], newer['meeting_id'], proposal['context'], [], link)
+    if takes_owner:
+        take_owner(conn, older, newer, link, member_id)
     # A person's merge from a later meeting brings the card kept there; the clean-up's never does.
     if member_id is not None:
         carry_by_merge(conn, older, newer, link)
     # Evidence stays on its source card. API follows the link; deletion and undo remove it.
     pair_events(conn, 'card.merge', (older, newer), link, member_id)
     return link
+
+
+def take_owner(conn, older, newer, link_id, member_id):
+    """The card kept takes the merged card's owner, merged by `member_id` or the clean-up.
+    Unless a person chose it, it is bwat's own change (a 'system' event): the room may still
+    give the card another owner (claim_owner), and it is not counted as owned in the room. One
+    the person merging takes themself is accepted; anyone else's waits for them (owner_set)."""
+    owner = {'owner_member_id': newer['owner_member_id'], 'owner_name': newer['owner_name']}
+    accept, accept_params = owner_set(owner['owner_member_id'], member_id)
+    conn.execute(f'UPDATE cards.cards SET owner_member_id = %s, owner_name = %s, {accept} WHERE id = %s',
+                 [*owner.values(), *accept_params, older['id']])
+    # Whether the take was also the owner's acceptance: they merged their own card in.
+    cause = {'link_id': str(link_id), 'accepted': owner['owner_member_id'] is not None and owner['owner_member_id'] == member_id}
+    # Said in another meeting: the event names it, as a claim from a later meeting does.
+    if newer['meeting_id'] != older['meeting_id']:
+        cause['meeting_id'] = newer['meeting_id']
+    # A person chose the merged card's owner: it stays theirs on the card kept, so the room
+    # never changes it (claim_owner); one bwat gave it stays bwat's.
+    chosen = conn.execute('''SELECT actor_kind, actor_member_id FROM cards.card_events
+                             WHERE card_id = %s AND action = 'card.owner' ORDER BY at DESC, id DESC LIMIT 1''',
+                          [newer['id']]).fetchone()
+    actor, by = chosen if chosen and chosen[0] == 'member' else ('system', None)
+    event(conn, older['id'], older['meeting_id'], 'card.owner', actor, by,
+          before={'owner_member_id': None, 'owner_name': None}, after=owner, cause=cause)
+
+
+def give_back_owner(conn, link_id, kept_id):
+    """An undone merge takes back the owner it gave the card kept (take_owner), unless the
+    owner has changed since or the owner has taken the card on since (an acceptance the merge
+    made itself is the merge's, and goes with it; no timestamp decides, as two transactions'
+    `now()` can cross). The card is unowned again as bwat's own change (a 'system' event), not
+    a person's choice of no owner, so the room may still give it one."""
+    taken = conn.execute('''SELECT e.card_id, e.meeting_id, e.after FROM cards.card_events e
+                            JOIN cards.cards c ON c.id = e.card_id
+                            WHERE e.card_id = %s AND e.action = 'card.owner' AND e.cause->>'link_id' = %s
+                              -- The card still has the owner the merge gave it: its state decides, not
+                              -- the order of events, whose times are their transactions' starts.
+                              AND c.owner_member_id::text IS NOT DISTINCT FROM e.after->>'owner_member_id'
+                              AND c.owner_name IS NOT DISTINCT FROM e.after->>'owner_name'
+                              AND (c.accepted_at IS NULL OR (e.cause->>'accepted')::boolean)''',
+                         [kept_id, str(link_id)]).fetchone()
+    if not taken:
+        return
+    card_id, meeting_id, owner = taken
+    conn.execute('UPDATE cards.cards SET owner_member_id = NULL, owner_name = NULL, accepted_at = NULL WHERE id = %s',
+                 [card_id])
+    event(conn, card_id, meeting_id, 'card.owner', 'system', before=owner,
+          after={'owner_member_id': None, 'owner_name': None}, cause={'link_id': str(link_id), 'undo': True})
 
 
 def pair_events(conn, action, cards, link_id, member_id):
@@ -228,6 +303,7 @@ def undo_merge(conn, newer_id, via, revision, member_id):
     uncarry_merge(conn, link[0], member_id)
     for cid, _, meeting in rows:
         event(conn, cid, meeting, 'card.unmerge', 'member', member_id, cause={'link_id': str(link[0])})
+    give_back_owner(conn, link[0], link[2])
     # A person's action on both cards of the merge, however it was reached.
     acted(conn, [cid for cid, _, _ in rows], member_id)
 
@@ -261,7 +337,7 @@ def reconcile(dsn, meeting_id, model):
         proposal = {k: proposal[k] for k in ('older', 'newer')} | {'relationship': proposal.get('relationship')}
         if proposal['relationship'] != 'related':
             if (older['id'] == newer['id'] or older['kind'] != newer['kind'] or age(older) >= age(newer)
-                    or any(older[k] != newer[k] for k in ('owner_member_id', 'owner_name'))):
+                    or owners_differ(older, newer)):
                 refused += 1
                 continue
             # Keep the live card when only one is; two live cards are never merged.

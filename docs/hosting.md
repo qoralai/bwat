@@ -190,6 +190,7 @@ environment only.
 | `BWAT_CARDS_CREDENTIAL` | yes | The card service's credential (`bwc_`), minted after the migrations |
 | `BWAT_CARDS_BACKEND_TOKEN` | yes | The backend's value |
 | `BWAT_CARDS_MAX_CONCURRENT` | | Optional: the card API's database connections (default 20) |
+| `BWAT_CARDS_PORT` | | Optional: the port the card API listens on (default 8000) |
 
 ### web
 

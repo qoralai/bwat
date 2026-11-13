@@ -2,13 +2,15 @@
 
 The writer's cards start as drafts; a person's first action, or the clean-up after the
 meeting, makes one live. The owner acting on a card accepts it. A live card nobody acts on
-for 10 days closes as no_response, and says how many days it has left from day 5.
+for the admin's days (10 in most tests) closes as no_response, and says how many days it has
+left over its last 5; with Never (the default) none closes.
 """
 
 import json
 import threading
 import time
 import uuid
+from datetime import UTC
 from types import SimpleNamespace
 
 import httpx
@@ -281,6 +283,77 @@ def test_from_day_five_a_live_card_says_how_many_days_it_has_left(db, board):
     assert cards(board)[0]["expires_in_days"] == 4
 
 
+# The admin chooses how long an untouched card stays open; Never is the default.
+def test_with_never_no_card_closes_nor_warns_however_long_it_sits(db, board):
+    board["close"]["days"] = None
+    aged(db, board, 400)
+    with db.connect("cards") as conn:
+        assert expire(conn, None) == 0
+    assert state(db, board["card"])[0] == "open"
+    assert cards(board)[0]["expires_in_days"] is None
+    aged(db, board, 0)  # the database is shared: a later test's expiry check must not close it
+
+
+def test_a_card_closes_after_the_admins_days_and_warns_over_its_last_five(db, board):
+    board["close"]["days"] = 20
+    aged(db, board, 14)
+    assert cards(board)[0]["expires_in_days"] is None
+    aged(db, board, 16)
+    assert cards(board)[0]["expires_in_days"] == 4
+    with db.connect("cards") as conn:
+        assert expire(conn, 20) == 0
+    aged(db, board, 21)
+    with db.connect("cards") as conn:
+        assert expire(conn, 20) == 1
+
+
+def test_setting_a_span_counts_old_cards_from_then_so_none_closes_unwarned(db, board):
+    """Cards older than the new span (all of them, after Forever) start their clock when it was set."""
+    from datetime import datetime, timedelta
+    aged(db, board, 400)
+    just_set = datetime.now(UTC)
+    with db.connect("cards") as conn:
+        assert expire(conn, 10, just_set) == 0
+    assert state(db, board["card"])[0] == "open"
+    with db.connect("cards") as conn:
+        assert expire(conn, 10, just_set - timedelta(days=11)) == 1
+
+
+def test_a_card_counts_its_days_left_from_when_the_span_was_set():
+    from datetime import datetime, timedelta
+
+    from writer.lifecycle import expires_in
+    set_at = datetime.now(UTC) - timedelta(days=6.5)
+    assert expires_in("open", False, 400, 10, set_at) == 4
+    assert expires_in("open", False, 400, 10, datetime.now(UTC)) is None
+    assert expires_in("open", False, 2, 10, set_at) is None
+
+
+def test_the_writer_reads_when_the_span_was_set():
+    body = {"base_url": "https://openrouter.ai/api/v1", "model": "m", "api_key": "k", "jev_api_key": None,
+            "close_since": "2026-11-11T16:00:00.000Z",
+            "settings": {"cards_granularity": "balanced", "cards_keep_open_forever": False, "cards_close_after_days": 10}}
+    assert settings_of(body).close_since.isoformat() == "2026-11-11T16:00:00+00:00"
+
+
+def test_a_span_shorter_than_the_warning_warns_from_the_start(db, board):
+    board["close"]["days"] = 3
+    aged(db, board, 1)
+    assert cards(board)[0]["expires_in_days"] == 2
+
+
+@pytest.mark.parametrize("served, days", [
+    ({"cards_keep_open_forever": True, "cards_close_after_days": 10}, None),
+    ({"cards_keep_open_forever": False, "cards_close_after_days": 30}, 30),
+    ({}, None),
+])
+def test_the_writer_reads_the_close_after_days_from_its_settings(served, days):
+    body = {"base_url": "https://openrouter.ai/api/v1", "model": "m", "api_key": "k", "jev_api_key": None,
+            "settings": {"cards_granularity": "balanced", "jev_enabled": False, "jev_model": "j", "jev_threshold_pct": 50,
+                         "jev_link_threshold_pct": 50, "jev_deadline_s": 5, **served}}
+    assert settings_of(body).close_after_days == days
+
+
 def keep(board, rev):
     return board["client"].post(f"/v1/cards/{board['card']}/keep", **as_person(json={"revision": rev}))
 
@@ -351,12 +424,24 @@ def test_a_closed_card_is_not_kept(db, board):
     assert [e[0] for e in person.events(db, board["card"])] == ["card.expire"]
 
 
-def test_the_writer_loop_runs_the_expiry_check(db, board):
-    aged(db, board, 11)
+def lifecycle_with(db, served):
     loop = WriterLoop(db.url("cards"), Buffer(), None)
-    loop._read_settings = lambda: settings_of({"base_url": "http://model.test", "model": "fake", "api_key": "k", "settings": {"cards_granularity": "balanced"}})
+    loop._read_settings = lambda: settings_of({"base_url": "http://model.test", "model": "fake", "api_key": "k",
+                                               "settings": {"cards_granularity": "balanced", **served}})
     loop._lifecycle()
+
+
+def test_the_writer_loop_runs_the_expiry_check_with_the_admins_days(db, board):
+    aged(db, board, 11)
+    lifecycle_with(db, {"cards_keep_open_forever": False, "cards_close_after_days": 10})
     assert state(db, board["card"])[0] == "no_response"
+
+
+def test_the_writer_loop_closes_nothing_by_default(db, board):
+    aged(db, board, 400)
+    lifecycle_with(db, {})
+    assert state(db, board["card"])[0] == "open"
+    aged(db, board, 0)
 
 
 # Merge now and Link now are a person's action

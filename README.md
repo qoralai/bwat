@@ -2,6 +2,8 @@
 
 bwat listens in your Zoom meeting and turns each thing someone commits to into a card, with the sentence they said it in. Send a card to your own Claude Code session with one button, or file it in Jira once an admin turns Jira on.
 
+![The bwat board after a standup: to-dos, a question, a risk and a decision, with one card open on the sentence it came from](docs/assets/board.png)
+
 ## Start here
 
 Open Claude Code in any folder and paste this line:

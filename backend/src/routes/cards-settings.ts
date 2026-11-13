@@ -4,7 +4,7 @@ import { CARDS_MODEL_KEY, effectiveCardsModel, isSaved } from '../cards-model.ts
 import { secretName, type Provider } from '../model-keys.ts';
 import { SecretUnavailable, SecretUnreadable, type SecretStore } from '../secrets/store.ts';
 import { CARDS_KEYS, settingDef } from '../settings/catalogue.ts';
-import { readSettingsVersion, setValues } from '../settings/store.ts';
+import { readSettingsVersion, setValues, storedSettings } from '../settings/store.ts';
 import type { ZdrLookup } from '../zdr.ts';
 import { matches, tagOf } from './bot-settings.ts';
 import { requireCaller } from './bots.ts';
@@ -40,6 +40,8 @@ interface CardsSettings {
   jev_threshold_pct: number;
   jev_link_threshold_pct: number;
   jev_deadline_s: number;
+  cards_keep_open_forever: boolean;
+  cards_close_after_days: number;
 }
 
 type ZdrUse = 'writer' | 'jev';
@@ -113,6 +115,12 @@ export function cardsSettingsRoutes(
       req.log.warn({ event: 'cards.secret_unavailable', provider }, 'card writer key unreadable');
       return reply.code(503).send({ error: 'secret_unavailable' });
     }
+    // When an admin last set a span for untouched cards, so the card service starts
+    // each card's clock no earlier: switching from Forever never closes old cards unwarned.
+    const closeTimes = await storedSettings(pool, ['cards_keep_open_forever', 'cards_close_after_days']);
+    const closeSince = settings.cards_keep_open_forever
+      ? null
+      : new Date(Math.max(0, ...[...closeTimes.values()].map((v) => v.updatedAt.getTime()))).toISOString();
     const body = {
       base_url: cardsModel.baseUrl,
       model,
@@ -123,6 +131,7 @@ export function cardsSettingsRoutes(
       // An admin saved this model past the no-ZDR warning: the writer sends without ZDR routing.
       zdr_waived: waived,
       jev_api_key: jevKey,
+      close_since: closeSince,
     };
     const tag = tagOf('cards-r1', settingsVersion, body);
     reply.header('cache-control', 'no-store');

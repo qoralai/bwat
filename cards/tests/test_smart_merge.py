@@ -79,10 +79,17 @@ def test_creation_cutoff_different_kind_and_owner_are_enforced(db, meeting):
         board[new]['kind'] = 'risk'
         with pytest.raises(ValueError, match='different kinds'):
             apply_merge(conn, {'older': old, 'newer': new, 'context': 'Unsafe'}, board)
-        board[new]['kind'] = board[old]['kind']
-        board[new]['owner_name'] = 'Somebody else'
-        with pytest.raises(ValueError, match='ownership'):
-            apply_merge(conn, {'older': old, 'newer': new, 'context': 'Unsafe'}, board)
+    # Owners are read from the locked cards, as they are now.
+    with db.connect('cards') as conn:
+        conn.execute("UPDATE cards.cards SET owner_name = 'Somebody else' WHERE id = %s", [new])
+    with db.connect('owner') as conn:
+        conn.execute('ALTER TABLE cards.cards DISABLE TRIGGER cards_bump')
+        try:
+            conn.execute("UPDATE cards.cards SET created_at = now() WHERE id = %s", [old])
+        finally:
+            conn.execute('ALTER TABLE cards.cards ENABLE TRIGGER cards_bump')
+    with db.connect('cards') as conn, pytest.raises(ValueError, match='ownership'):
+        apply_merge(conn, {'older': old, 'newer': new, 'context': 'Unsafe'}, candidates(conn, meeting['id']))
 
 
 def test_cross_meeting_merge_retains_source_evidence_and_deletion_removes_added_context(db, meeting):

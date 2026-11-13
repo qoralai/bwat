@@ -2489,6 +2489,16 @@ describe('meeting desk (board.html)', () => {
     expect(document.querySelector<HTMLElement>('#meeting-more')!.hidden).toBe(false);
   });
 
+  // A time window holds every meeting in it; the strip counts them rather than naming each.
+  it('counts the meetings of a time window instead of naming them', async () => {
+    const { document } = await open('board.html', fakeServer(), '?when=week');
+    await until(() => document.querySelector('#page-title')!.textContent === 'This week');
+    await until(() => /cards?$/.test(document.querySelector('#meeting-meta')!.textContent!));
+    const meta = document.querySelector('#meeting-meta')!.textContent!;
+    expect(meta).toMatch(/^2 meetings · \d+ cards?$/);
+    expect(meta).not.toContain('Standup');
+  });
+
   it('has no meeting ⋯ while several meetings are on screen', async () => {
     const { document } = await open('board.html', fakeServer(), '?source=all');
     await until(() => document.querySelector('#page-title')!.textContent === 'All meetings');

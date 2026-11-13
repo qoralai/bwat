@@ -93,14 +93,33 @@ def board(db):
     http = httpx.Client(transport=httpx.MockTransport(backend.handle), base_url="http://backend.test", headers={"Authorization": f"Bearer {CREDENTIAL}"})
     activity = {}
     paused = {"now": None}
+    # The admin's Close untouched cards days; a test sets None for Never.
+    close = {"days": 10}
     server = make_server(db.url("cards"), http, BACKEND_TOKEN, port=0, clock=clock, activity=activity,
-                         paused=lambda: paused["now"], failures_per_min=3)
+                         paused=lambda: paused["now"], failures_per_min=3, close_after_days=lambda: close["days"])
     threading.Thread(target=server.serve_forever, daemon=True).start()
     client = httpx.Client(base_url=f"http://127.0.0.1:{server.server_address[1]}")
     yield {"meeting": str(meeting_id), "occurrence": f"occ/{tag}==", "card": str(card_id), "member": str(member),
-           "client": client, "backend": backend, "clock": clock, "activity": activity, "paused": paused}
+           "client": client, "backend": backend, "clock": clock, "activity": activity, "paused": paused, "close": close}
     server.shutdown()
     server.server_close()
+
+
+def test_a_board_asks_for_the_close_after_days_once_not_once_per_card(db):
+    """The settings reader is asked at most every few seconds, so a board of many cards
+    with the backend down makes one failing call, not one per card."""
+    from api import app
+    calls = []
+
+    def failing():
+        calls.append(1)
+        raise httpx.ConnectError("down")
+    server = make_server(db.url("cards"), httpx.Client(base_url="http://backend.test"), BACKEND_TOKEN, port=0, settings=failing)
+    try:
+        assert [app.close_after() for _ in range(50)] == [(None, None)] * 50
+        assert len(calls) == 1
+    finally:
+        server.server_close()
 
 
 def as_person(**kwargs):

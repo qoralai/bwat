@@ -49,8 +49,17 @@ describe('served to (QOR-4769)', () => {
     ]);
   });
 
-  it('serves the card service the card size and the five Jev settings, and nothing else', () => {
-    expect(CARDS_KEYS).toEqual(['cards_granularity', 'jev_enabled', 'jev_model', 'jev_threshold_pct', 'jev_link_threshold_pct', 'jev_deadline_s']);
+  it('serves the card service the card size, the five Jev settings and when untouched cards close, and nothing else', () => {
+    expect(CARDS_KEYS).toEqual([
+      'cards_granularity', 'cards_keep_open_forever', 'cards_close_after_days', 'jev_enabled', 'jev_model', 'jev_threshold_pct', 'jev_link_threshold_pct', 'jev_deadline_s',
+    ]);
+  });
+
+  it('keeps untouched cards open forever by default, under Retention, with 10 days once an admin picks a span', () => {
+    expect([settingDef('cards_keep_open_forever')!.section, settingDef('cards_keep_open_forever')!.codeDefault]).toEqual(['retention', true]);
+    expect(settingDef('cards_close_after_days')!.codeDefault).toBe(10);
+    expect(validateSection('retention', { cards_keep_open_forever: false, cards_close_after_days: 30 })).toEqual([]);
+    expect(validateSection('retention', { cards_close_after_days: 0 })).not.toEqual([]);
   });
 });
 

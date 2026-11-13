@@ -23,7 +23,10 @@ const zdrFetch = () =>
     { [WRITER_MODEL]: ['Amazon Bedrock | w', 'Anthropic | w'], [JEV_MODEL]: ['TypeSafe | j'], 'other/model': ['Other | o', 'TypeSafe | j'] },
     ['Amazon Bedrock | w', 'TypeSafe | j'],
   ).fetch;
-const DEFAULTS = { cards_granularity: 'balanced', jev_enabled: true, jev_model: JEV_MODEL, jev_threshold_pct: 65, jev_link_threshold_pct: 85, jev_deadline_s: 60 };
+const DEFAULTS = {
+  cards_keep_open_forever: true, cards_close_after_days: 10,
+  cards_granularity: 'balanced', jev_enabled: true, jev_model: JEV_MODEL, jev_threshold_pct: 65, jev_link_threshold_pct: 85, jev_deadline_s: 60,
+};
 
 /** A secret store holding these provider keys, seeded before any request. */
 function storeWith(keys: Record<string, string>, fake = new FakeSecretsManager()) {
@@ -51,7 +54,7 @@ describeDb('GET /cards/settings (QOR-4678)', () => {
       [Object.keys(values), Object.values(values)],
     );
   beforeEach(async () => {
-    await store({ cards_granularity: 'null', jev_enabled: 'null', jev_model: 'null', jev_threshold_pct: 'null', jev_link_threshold_pct: 'null', jev_deadline_s: 'null' });
+    await store({ cards_keep_open_forever: 'null', cards_close_after_days: 'null', cards_granularity: 'null', jev_enabled: 'null', jev_model: 'null', jev_threshold_pct: 'null', jev_link_threshold_pct: 'null', jev_deadline_s: 'null' });
   });
 
   it('gives the card service the default OpenRouter address and model with the stored OpenRouter key, and Jev with its defaults', async () => {
@@ -66,8 +69,19 @@ describeDb('GET /cards/settings (QOR-4678)', () => {
       zdr: { writer: true, jev: true },
       zdr_waived: false,
       jev_api_key: OPENROUTER,
+      close_since: null,
     });
     expect(lines.join('\n')).not.toContain(OPENROUTER);
+  });
+
+  it('serves the span for untouched cards and when it was set, so no card counts from before it', async () => {
+    await store({ cards_keep_open_forever: 'false', cards_close_after_days: '30' });
+    const { rows } = await t.pool.query<{ at: Date }>(
+      `SELECT max(updated_at) AS at FROM settings WHERE key IN ('cards_keep_open_forever', 'cards_close_after_days')`,
+    );
+    const body = (await get()).json();
+    expect(body.settings).toMatchObject({ cards_keep_open_forever: false, cards_close_after_days: 30 });
+    expect(body.close_since).toBe(rows[0]!.at.toISOString());
   });
 
   it('serves the stored card size over its default', async () => {

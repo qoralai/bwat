@@ -51,6 +51,11 @@ from writer.hints import KINDS
 from writer.loop import SETTINGS_UNAVAILABLE
 from writer.window import plain, stamp
 
+CLOSE_AFTER_EVERY_S = 5  # between the board's reads of the close-after days
+# The admin's "Close untouched cards" days (None for Never) and when they were set,
+# read for each card's "Closes in N days". make_server sets it.
+close_after = lambda: (None, None)
+
 ME_TTL_S = 60
 FAILURES_PER_MIN = 30  # the backend's default (BWAT_RATE_LIMIT_SIGNIN_FAILURES_PER_MIN)
 GOOGLE_TOKEN = re.compile(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
@@ -217,9 +222,8 @@ CARD_COLUMNS = f"""
        c.accepted_at IS NOT NULL,
        -- Days since the card went live or a person last acted on it, whichever is later
        -- (writer.lifecycle): the writer's own changes do not count. Only for a live, current,
-       -- never kept card on the board, as only such a card expires, live long enough to warn;
-       -- else null.
-       CASE WHEN {lifecycle.expirable(lifecycle.WARN_DAYS)}
+       -- never kept card on the board, as only such a card expires; else null.
+       CASE WHEN {lifecycle.expirable(0)}
             THEN extract(epoch FROM now() - GREATEST(c.live_at, (SELECT max(e.at) FROM cards.card_events e
                                                       WHERE e.card_id = c.id AND e.actor_kind = 'member')))::float8 / 86400
        END,
@@ -308,8 +312,9 @@ def card_view(row):
         "status": status,
         # Whether the owner member has taken the card on, by acting on it or by taking it.
         "accepted": accepted,
-        # From day 5 of a live card nobody acts on, the days left before it closes; else null.
-        "expires_in_days": lifecycle.expires_in(status, archived, idle_days),
+        # Over the last days of a live card nobody acts on, the days left before it closes;
+        # else null, and always null while cards never close.
+        "expires_in_days": lifecycle.expires_in(status, archived, idle_days, *close_after()),
         # bwat closed this draft itself, when later words showed it was not real: on the board
         # as closed by bwat, never as a person's Won't do.
         "withdrawn": status == "wont_do" and withdrawn,
@@ -1080,14 +1085,31 @@ class Server(ThreadingHTTPServer):
 
 def make_server(dsn, backend, backend_token, port=8000, host="0.0.0.0", clock=time.monotonic, activity=None,
                 dev_token=None, failures_per_min=FAILURES_PER_MIN, settings=None, model_transport=None, paused=None,
-                max_concurrent=MAX_CONCURRENT):
+                max_concurrent=MAX_CONCURRENT, close_after_days=None):
     """The card API on host:port; `backend` is an httpx client at BWAT_BACKEND_URL that sends
     the card service's bwc_ credential; `activity` is the writer loop's
     {meeting_id: last pass}, for the board's activity word, and `paused` reads its pause on a
     gone model, for the admin panel; `settings` its settings reader,
-    for Merge now and Link now (QOR-4770), and `model_transport` tests' fake model."""
+    for Merge now and Link now (QOR-4770), and `model_transport` tests' fake model.
+    `close_after_days` reads the days untouched cards close after (None: never); by default
+    the settings' own, read at most every few seconds (a board of N cards asks once), and
+    None while they cannot be read."""
     if not backend_token:
         raise ValueError("BWAT_CARDS_BACKEND_TOKEN is required")
+    global close_after
+    read = {"at": float("-inf"), "value": (None, None)}
+
+    def from_settings():
+        if time.monotonic() - read["at"] >= CLOSE_AFTER_EVERY_S:
+            read["at"] = time.monotonic()
+            try:
+                current = settings()
+                # A reader that serves no such field (an older one's) means Never.
+                read["value"] = (getattr(current, "close_after_days", None), getattr(current, "close_since", None))
+            except SETTINGS_UNAVAILABLE:
+                read["value"] = (None, None)
+        return read["value"]
+    close_after = (lambda: (close_after_days(), None)) if close_after_days else from_settings
     # Opened in the background: a database not up yet does not stop the API starting. Each
     # connection is checked as it is lent, so one a database restart closed is replaced.
     pool = ConnectionPool(dsn, min_size=1, max_size=max_concurrent, timeout=BUSY_WAIT_S, open=True,

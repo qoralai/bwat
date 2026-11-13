@@ -234,17 +234,18 @@ export function SecretRow({
   );
 }
 
-/** The providers whose keys the backend stores, in page order; the first two bwat needs. */
+/** The providers whose keys the backend stores, in page order; the first is the one bwat needs. */
 const PROVIDERS = [
   { provider: 'openrouter', name: 'OpenRouter', required: true },
-  { provider: 'deepgram', name: 'Deepgram', required: true },
+  // Transcription runs through OpenRouter by default; a Deepgram key only matters when BWAT_ASR_URL points at Deepgram.
+  { provider: 'deepgram', name: 'Deepgram' },
   { provider: 'openai', name: 'OpenAI' },
   { provider: 'anthropic', name: 'Anthropic' },
   { provider: 'cerebras', name: 'Cerebras' },
   { provider: 'custom', name: 'Custom endpoint' },
 ] as const;
 
-/** The two providers bwat needs, always; under Other, those that have a key, the rest under Add provider. */
+/** The provider bwat needs, always; under Other, those that have a key, the rest under Add provider. */
 export function ModelKeys() {
   const keys = useQuery({ queryKey: ['model-keys'], queryFn: fetchModelKeys });
   const [adding, setAdding] = useState<string[]>([]);

@@ -711,11 +711,22 @@ def test_acting_needs_the_card_the_board_showed(db, hinted):
 def test_merge_now_refuses_a_pair_that_may_not_merge_with_its_reason(db, hinted):
     with db.connect("cards") as conn:
         conn.execute("UPDATE cards.cards SET owner_member_id = %s WHERE id = %s", [hinted.meeting["marco"], hinted.older])
+        conn.execute("UPDATE cards.cards SET owner_member_id = %s WHERE id = %s", [hinted.meeting["ada"], hinted.newer])
     checked(db, hinted.newer, (hinted.older, 0.9))
     refused = act(hinted, hinted.newer, hinted.older)
     assert (refused.status_code, refused.json()["error"]) == (409, "hint_refused")
     assert refused.json()["message"] == "Not merged: the cards have different owners"
     assert links_of(db, hinted.older, hinted.newer) == []
+
+
+def test_merge_now_with_one_owner_merges_and_the_card_kept_takes_that_owner(db, hinted):
+    """Only two cards owned by different people are refused."""
+    with db.connect("cards") as conn:
+        conn.execute("UPDATE cards.cards SET owner_member_id = %s WHERE id = %s", [hinted.meeting["ada"], hinted.newer])
+    checked(db, hinted.newer, (hinted.older, 0.9))
+    done = act(hinted, hinted.newer, hinted.older)
+    assert (done.status_code, done.json()["outcome"]) == (200, "merged")
+    assert board_card(hinted, hinted.older)["owner_member_id"] == str(hinted.meeting["ada"])
 
 
 def test_merge_now_waits_for_a_running_clean_up(db, hinted):

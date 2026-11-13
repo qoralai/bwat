@@ -158,6 +158,26 @@ export const SETTINGS: readonly SettingDef[] = [
     servedTo: [],
   },
   {
+    // On, the card service never closes a live card nobody acts on. On by default:
+    // a card stays on the board until a person closes it.
+    key: 'cards_keep_open_forever',
+    section: 'retention',
+    label: 'Keep untouched cards open forever',
+    kind: { type: 'boolean' },
+    codeDefault: true,
+    servedTo: ['cards'],
+  },
+  {
+    // With the above off, a live card nobody acts on for this many days closes as
+    // no response (D194), and warns over its last 5. The card service reads it with its settings.
+    key: 'cards_close_after_days',
+    section: 'retention',
+    label: 'Days before an untouched card closes',
+    kind: { type: 'whole', min: 1, max: 36_500, unit: 'days' },
+    codeDefault: 10,
+    servedTo: ['cards'],
+  },
+  {
     // QOR-4769: Jev, the card service's cheap check whether new transcript lines are worth a
     // writer pass. On by default; the installer's "no" writes BWAT_JEV=off, which turns
     // the default off (a stored value still wins).

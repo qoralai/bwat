@@ -440,15 +440,18 @@ class WriterLoop:
                         settings.jev.link_threshold_pct)
 
     def _lifecycle(self):
-        """Closes the live cards nobody has acted on for 10 days as no response (D194), then
-        puts live the drafts of ended meetings whose clean-up is over (writer.lifecycle)."""
+        """Closes the live cards nobody has acted on for the admin's days as no response
+        (D194), then puts live the drafts of ended meetings whose clean-up is over
+        (writer.lifecycle)."""
         try:
-            keyless = not self._read_settings().api_key
-        # No settings yet and the backend down: whether the clean-up can run is unknown.
+            settings = self._read_settings()
+            keyless, close_after, since = not settings.api_key, settings.close_after_days, settings.close_since
+        # No settings yet and the backend down: whether the clean-up can run, and whether
+        # cards close at all, is unknown; none closes.
         except SETTINGS_UNAVAILABLE:
-            keyless = False
+            keyless, close_after, since = False, None, None
         with psycopg.connect(self._dsn) as conn:
-            count = lifecycle.expire(conn)
+            count = lifecycle.expire(conn, close_after, since)
             lifecycle.go_live(conn, keyless)
         if count:
             log.info("cards closed with no response: %d", count)
@@ -503,6 +506,11 @@ def settings_of(body):
         # Off only for a model an admin saved past the no-ZDR warning.
         zdr=not body.get("zdr_waived"),
         granularity=jev["cards_granularity"],
+        # Close untouched cards: None for Never, the default; a backend that does
+        # not serve it yet means Never too.
+        close_after_days=None if jev.get("cards_keep_open_forever", True) else int(jev["cards_close_after_days"]),
+        # When the admin set that span: no card's clock starts earlier.
+        close_since=datetime.fromisoformat(body["close_since"]) if body.get("close_since") else None,
         jev=SimpleNamespace(model=jev["jev_model"], api_key=body["jev_api_key"],
                             threshold_pct=int(jev["jev_threshold_pct"]),
                             link_threshold_pct=int(jev["jev_link_threshold_pct"]),

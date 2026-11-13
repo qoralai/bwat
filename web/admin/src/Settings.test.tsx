@@ -172,7 +172,7 @@ describe('the admin Settings page, in five places', () => {
   it('offers Meeting bot, Cards, Models, Data and Connections, one at a time, opening on Meeting bot, each under its title alone', async () => {
     show();
     const nav = await screen.findByRole('navigation', { name: 'Settings pages' });
-    expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual(['Meeting bot', 'Cards', 'Models', 'Data', 'Connections']);
+    expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual(['Meeting bot', 'Cards', 'Models', 'Retention', 'Connections']);
     expect(within(nav).getByRole('button', { name: 'Meeting bot' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('heading', { name: 'Meeting bot' })).toBeTruthy();
     expect(screen.queryByText(/How bwat joins and shows up|How bwat turns what is said|How long bwat keeps|The Zoom apps|Which models bwat uses/)).toBeNull();
@@ -202,7 +202,7 @@ describe('the admin Settings page, in five places', () => {
   it('keeps settings bwat does not offer here out of every place (another change builds them)', async () => {
     show();
     await screen.findByLabelText('Join meetings on its own');
-    for (const name of ['Meeting bot', 'Cards', 'Models', 'Data', 'Connections']) {
+    for (const name of ['Meeting bot', 'Cards', 'Models', 'Retention', 'Connections']) {
       place(name);
       expect(screen.queryByText(/Join muted|Camera off|Reset to default|keeps listening for follow-ups/)).toBeNull();
     }
@@ -213,7 +213,7 @@ describe('a member reads sentences, not greyed-out fields', () => {
   it('says how bwat joins, what it is called, how cards are grouped and how long transcripts stay', async () => {
     show('member');
     const nav = await screen.findByRole('navigation', { name: 'Settings pages' });
-    expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual(['Meeting bot', 'Cards', 'Data']);
+    expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual(['Meeting bot', 'Cards', 'Retention']);
     expect(await screen.findByText('bwat joins meetings in your Zoom account on its own, once the host is there.')).toBeTruthy();
     expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === 'It shows up as bwat, with its picture as its video.')).toBeTruthy();
     expect(screen.getByText('It posts in the meeting chat.')).toBeTruthy();
@@ -225,7 +225,7 @@ describe('a member reads sentences, not greyed-out fields', () => {
     expect(screen.getByText('Faster cards are on.')).toBeTruthy();
     // Anyone signed in keeps the dictionary, so a member has it too.
     expect(await screen.findByRole('region', { name: 'Dictionary' })).toBeTruthy();
-    place('Data');
+    place('Retention');
     expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === 'Transcripts are deleted after 30 days. Cards stay.')).toBeTruthy();
     expect(calls.some((c) => /model-keys|cards-model|secrets|presence-image/.test(c.path))).toBe(false);
   });
@@ -235,7 +235,7 @@ describe('a member reads sentences, not greyed-out fields', () => {
     stored.transcript_keep_forever = entry(null, true);
     show('member');
     expect(await screen.findByText('bwat joins only when invited.')).toBeTruthy();
-    place('Data');
+    place('Retention');
     expect(screen.getByText('Transcripts are kept forever. Cards stay.')).toBeTruthy();
   });
 
@@ -281,8 +281,8 @@ describe('one save bar', () => {
   it('saves every place it changed in one request with the revisions it read, then the lens closes, only once the server has answered', async () => {
     show();
     fireEvent.click(await screen.findByLabelText('Only once the host is there'));
-    place('Data');
-    fireEvent.click(screen.getByRole('button', { name: 'Forever' }));
+    place('Retention');
+    fireEvent.click(within(screen.getByRole('group', { name: 'Keep transcripts' })).getByRole('button', { name: 'Forever' }));
     let release!: () => void;
     gate = new Promise((resolve) => (release = resolve));
     fireEvent.click(within(bar()).getByRole('button', { name: 'Save' }));
@@ -341,14 +341,14 @@ describe('one save bar', () => {
     fireEvent.click(await screen.findByLabelText('Only once the host is there'));
     place('Cards');
     fireEvent.change(screen.getByRole('slider', { name: 'Card grouping' }), { target: { value: '2' } });
-    place('Data');
-    fireEvent.click(screen.getByRole('button', { name: 'Forever' }));
+    place('Retention');
+    fireEvent.click(within(screen.getByRole('group', { name: 'Keep transcripts' })).getByRole('button', { name: 'Forever' }));
     fireEvent.click(within(bar()).getByRole('button', { name: 'Save' }));
     const alert = await screen.findByRole('alert');
-    expect(within(alert).getByText('Nothing was saved. Data changed elsewhere: reload to see it.')).toBeTruthy();
+    expect(within(alert).getByText('Nothing was saved. Retention changed elsewhere: reload to see it.')).toBeTruthy();
     expect(writes()).toHaveLength(1);
     expect(within(bar()).getByText('3 changes')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Forever' }).closest('.setting')!.className).toContain('changed');
+    expect(within(screen.getByRole('group', { name: 'Keep transcripts' })).getByRole('button', { name: 'Forever' }).closest('.setting')!.className).toContain('changed');
     expect(within(bar()).getByRole('status').textContent).toBe('');
     fireEvent.click(within(alert).getByRole('button', { name: 'Reload' }));
     await waitFor(() => expect(bar().className).not.toContain('show'));
@@ -368,7 +368,7 @@ describe('one save bar', () => {
   it('names what cannot be saved, as the page names it, and holds Save until it is fixed', async () => {
     show();
     await screen.findByLabelText('Join meetings on its own');
-    place('Data');
+    place('Retention');
     fireEvent.change(screen.getByLabelText('Days'), { target: { value: '0' } });
     expect(screen.getByText('Days to keep transcripts must be a whole number from 1 to 36500.')).toBeTruthy();
     expect((within(bar()).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
@@ -381,10 +381,10 @@ describe('one save bar', () => {
   it('drops a half-typed number of days once Forever is chosen, so Save is not held by a field no longer shown', async () => {
     show();
     await screen.findByLabelText('Join meetings on its own');
-    place('Data');
+    place('Retention');
     fireEvent.change(screen.getByLabelText('Days'), { target: { value: 'abc' } });
     expect((within(bar()).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Forever' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Keep transcripts' })).getByRole('button', { name: 'Forever' }));
     expect(screen.queryByText('Days to keep transcripts must be a whole number from 1 to 36500.')).toBeNull();
     expect(within(bar()).getByText('1 change')).toBeTruthy();
     fireEvent.click(within(bar()).getByRole('button', { name: 'Save' }));
@@ -397,19 +397,40 @@ describe('the places, item by item', () => {
   it('keeps transcripts as one choice: Forever, or Delete after N days', async () => {
     show();
     await screen.findByLabelText('Join meetings on its own');
-    place('Data');
-    expect(screen.getByRole('button', { name: 'Delete after' }).getAttribute('aria-pressed')).toBe('true');
+    place('Retention');
+    const transcripts = within(screen.getByRole('group', { name: 'Keep transcripts' }));
+    expect(transcripts.getByRole('button', { name: 'Delete after' }).getAttribute('aria-pressed')).toBe('true');
     expect((screen.getByLabelText('Days') as HTMLInputElement).value).toBe('30');
     expect(screen.getByText('Cards stay. Only the word-for-word transcript is deleted.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Forever' }));
-    expect(screen.getByRole('button', { name: 'Forever' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(transcripts.getByRole('button', { name: 'Forever' }));
+    expect(transcripts.getByRole('button', { name: 'Forever' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.queryByLabelText('Days')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Delete after' }));
+    fireEvent.click(transcripts.getByRole('button', { name: 'Delete after' }));
     fireEvent.change(screen.getByLabelText('Days'), { target: { value: '14' } });
     expect(within(bar()).getByText('1 change')).toBeTruthy();
     fireEvent.click(within(bar()).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(writes()[0]!.body).toEqual({ changes: { transcript_retention_days: { value: 14, expectedRevision: 2 } } });
+  });
+
+  // Untouched cards stay open forever unless an admin picks a number of days.
+  it('keeps untouched cards open Forever by default, or closes them after the days an admin enters', async () => {
+    show();
+    await screen.findByLabelText('Join meetings on its own');
+    place('Retention');
+    const cards = within(screen.getByRole('group', { name: 'Keep untouched cards open' }));
+    expect(cards.getByRole('button', { name: 'Forever' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.queryByLabelText('Days before a card closes')).toBeNull();
+    fireEvent.click(cards.getByRole('button', { name: 'Close after' }));
+    const days = screen.getByLabelText('Days before a card closes') as HTMLInputElement;
+    expect(days.placeholder).toBe('10');
+    fireEvent.change(days, { target: { value: '30' } });
+    expect(within(bar()).getByText('2 changes')).toBeTruthy();
+    fireEvent.click(within(bar()).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0]!.body).toEqual({
+      changes: { cards_keep_open_forever: { value: false, expectedRevision: null }, cards_close_after_days: { value: 30, expectedRevision: null } },
+    });
   });
 
   it('calls the card size Card grouping, and the fast writer Faster cards, with one line that keeps its data fact', async () => {
@@ -436,7 +457,7 @@ describe('the places, item by item', () => {
   it('offers neither the join timings nor the Jev tuning thresholds anywhere, and never sends their stored values', async () => {
     show();
     await screen.findByLabelText('Join meetings on its own');
-    for (const name of ['Meeting bot', 'Cards', 'Models', 'Data', 'Connections']) {
+    for (const name of ['Meeting bot', 'Cards', 'Models', 'Retention', 'Connections']) {
       place(name);
       for (const label of ['Wait for a meeting to start', 'Wait in a waiting room', 'Leave after a silence of', 'Jev threshold', 'Link threshold', 'Card deadline']) {
         expect(screen.queryByLabelText(label), `${label} in ${name}`).toBeNull();
@@ -531,13 +552,15 @@ describe('keys and credentials', () => {
     expect(openrouter.textContent).toContain('Key ending wxyz');
     expect(openrouter.querySelector('.req')!.textContent).toBe('required');
     expect(within(openrouter).getByRole('button', { name: 'Remove' })).toBeTruthy();
-    const deepgram = providers.getByRole('group', { name: 'Deepgram required' });
+    const deepgram = providers.getByRole('group', { name: 'Deepgram' });
+    expect(deepgram.querySelector('.req')).toBeNull();
     expect(deepgram.textContent).toContain("Set by this install's environment, ending 22ab");
     expect(within(deepgram).queryByRole('button', { name: 'Remove' })).toBeNull();
     expect(providers.queryByRole('group', { name: 'OpenAI' })).toBeNull();
-    // The rest wait under Other.
+    // The rest wait under Other, Deepgram among them: transcription runs through OpenRouter by default.
     const other = providers.getByRole('heading', { name: 'Other' });
-    expect(other.compareDocumentPosition(deepgram) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(other.compareDocumentPosition(openrouter) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(other.compareDocumentPosition(deepgram) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const add = providers.getByLabelText('Add a provider') as HTMLSelectElement;
     expect([...add.options].map((o) => o.textContent)).toEqual(['Add provider…', 'OpenAI', 'Anthropic', 'Cerebras', 'Custom endpoint']);
     fireEvent.change(add, { target: { value: 'cerebras' } });
@@ -546,12 +569,12 @@ describe('keys and credentials', () => {
   });
 
   it('keeps a required provider listed while it has no key, for Add', async () => {
-    keys = keys.map((k) => (k.provider === 'deepgram' ? { ...k, set: false, source: null, last4: null } : k));
+    keys = keys.map((k) => (k.provider === 'openrouter' ? { ...k, set: false, source: null, last4: null } : k));
     const providers = await openModels();
-    const deepgram = await providers.findByRole('group', { name: 'Deepgram required' });
-    expect(deepgram.textContent).toContain('Not set');
-    expect(within(deepgram).getByRole('button', { name: 'Add' })).toBeTruthy();
-    expect([...(providers.getByLabelText('Add a provider') as HTMLSelectElement).options].map((o) => o.textContent)).not.toContain('Deepgram');
+    const openrouter = await providers.findByRole('group', { name: 'OpenRouter required' });
+    expect(openrouter.textContent).toContain('Not set');
+    expect(within(openrouter).getByRole('button', { name: 'Add' })).toBeTruthy();
+    expect([...(providers.getByLabelText('Add a provider') as HTMLSelectElement).options].map((o) => o.textContent)).not.toContain('OpenRouter');
   });
 
   it('takes a provider added without a key back off the list, on Cancel or on Remove, without writing anything', async () => {
@@ -705,7 +728,7 @@ describe('Cards', () => {
     expect(within(dictionary).getByText('Manage preferred spellings and common transcription mistakes.')).toBeTruthy();
     expect(await within(dictionary).findByRole('button', { name: 'Reload dictionary' })).toBeTruthy();
     expect(within(dictionary).getByRole('button', { name: 'Save dictionary' })).toBeTruthy();
-    place('Data');
+    place('Retention');
     expect(screen.queryByRole('region', { name: 'Dictionary' })).toBeNull();
   });
 

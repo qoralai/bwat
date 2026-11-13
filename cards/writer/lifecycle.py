@@ -7,19 +7,23 @@ whichever comes first. The owner member acting on a card accepts it; so does a p
 setting themself as its owner. Every person's action passes through person_change or
 acted, and every owner change through owner_set.
 
-A live card nobody acts on for EXPIRE_DAYS closes as no_response, never as done. Its clock
-is the later of when it went live and its last event with a person as actor: the writer's
-own changes never reset it. From WARN_DAYS the card says how many days are left. A card a
+A live card nobody acts on for the admin's "Close untouched cards" days closes as
+no_response, never as done; by default (Never) none does. Its clock is the later
+of when it went live and its last event with a person as actor: the writer's own changes
+never reset it. Over its last WARN_DAYS the card says how many days are left. A card a
 person has kept (card.keep) never expires: it stays until a person closes it.
 """
 
 import math
+from datetime import UTC, datetime
 
 from psycopg.types.json import Jsonb
 
 from writer.limits import RECONCILE_LOCK, RECONCILIATION_ATTEMPTS
 
+# The days expire() closes after when it is given none: what "After N days" first shows.
 EXPIRE_DAYS = 10
+# The days before it closes that a card says how many it has left.
 WARN_DAYS = 5
 # An ended meeting's drafts go live this long after it ended, or after its clean-up was
 # queued, whatever became of the clean-up: its longest wait between failed attempts (an
@@ -68,7 +72,7 @@ NOT_MERGED, CURRENT, NOT_KEPT = not_merged("c"), current("c"), not_kept("c")
 
 def expirable(days):
     """Card c can expire, live on the board for more than `days` days: SQL as is (a number)
-    or a parameter ('%s'). The API warns from WARN_DAYS on what expire() closes at EXPIRE_DAYS."""
+    or a parameter ('%s')."""
     return f"""c.status = 'open' AND NOT c.archived AND c.live_at < now() - {days} * interval '1 day'
                AND {CURRENT} AND {NOT_KEPT}"""
 
@@ -144,22 +148,26 @@ def go_live(conn, keyless):
                  [keyless, CLEAN_UP_HOURS, RECONCILIATION_ATTEMPTS, CLEAN_UP_HOURS])
 
 
-def expire(conn):
-    """Closes every live card on the board no person has acted on for EXPIRE_DAYS, and no
+def expire(conn, days=EXPIRE_DAYS, since=None):
+    """Closes every live card on the board no person has acted on for `days`, and no
     person has kept, as no_response, each with an event that names no member. Returns how many.
+    `days` None (the admin chose Never) closes none. `since`, when the admin set the span:
+    no card's clock starts earlier, so none closes until `days` have passed since then.
 
-    The candidates are locked first: only cards no person has acted on for EXPIRE_DAYS as
+    The candidates are locked first: only cards no person has acted on for `days` as
     far as that statement sees, skipping any a person holds now (the next pass sees them).
     The person-event check then runs again as its own statement, so it reads every event
     committed before the lock was taken. Checked in the locking statement alone, it would
     read an older snapshot and close a card a person acted on while the check waited."""
+    if days is None or since is not None and idle_since(since) < days:
+        return 0
     with conn.transaction():
         idle = [row[0] for row in conn.execute(
             f"""SELECT c.id FROM cards.cards c
                  WHERE {expirable('%s')}
                    AND NOT EXISTS (SELECT 1 FROM cards.card_events e WHERE e.card_id = c.id AND e.actor_kind = 'member'
                                      AND e.at >= now() - %s * interval '1 day')
-                   FOR UPDATE SKIP LOCKED""", [EXPIRE_DAYS, EXPIRE_DAYS])]
+                   FOR UPDATE SKIP LOCKED""", [days, days])]
         if not idle:
             return 0
         return len(conn.execute(
@@ -171,13 +179,21 @@ def expire(conn):
                  RETURNING c.id, c.meeting_id)
                INSERT INTO cards.card_events (card_id, meeting_id, action, actor_kind, before, after)
                SELECT id, meeting_id, 'card.expire', 'system', '{"status": "open"}', '{"status": "no_response"}' FROM idle
-               RETURNING card_id""", [idle, EXPIRE_DAYS]).fetchall())
+               RETURNING card_id""", [idle, days]).fetchall())
 
 
-def expires_in(status, archived, idle_days):
-    """The days a live card has left from WARN_DAYS on, else None. `idle_days`: days since
-    it went live or a person last acted on it, whichever is later."""
-    if status != "open" or archived or idle_days is None or idle_days < WARN_DAYS:
+def idle_since(since):
+    """The days since `since`, an aware datetime."""
+    return (datetime.now(UTC) - since).total_seconds() / 86400
+
+
+def expires_in(status, archived, idle_days, days=EXPIRE_DAYS, since=None):
+    """The days a live card has left over its last WARN_DAYS before it closes at `days`, else
+    None; None too when `days` is None (Never). `idle_days`: days since it went live or a
+    person last acted on it, whichever is later; never counted from before `since`."""
+    if since is not None and idle_days is not None:
+        idle_days = min(idle_days, idle_since(since))
+    if days is None or status != "open" or archived or idle_days is None or idle_days < days - WARN_DAYS:
         return None
     # At least 1: the check that closes it runs every 30 s.
-    return max(1, math.ceil(EXPIRE_DAYS - idle_days))
+    return max(1, math.ceil(days - idle_days))

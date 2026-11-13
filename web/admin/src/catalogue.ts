@@ -151,6 +151,24 @@ export const SETTINGS: readonly SettingDef[] = [
     codeDefault: true,
     servedTo: [],
   },
+  {
+    // On, the card service never closes a live card nobody acts on. On by default.
+    key: 'cards_keep_open_forever',
+    section: 'retention',
+    label: 'Keep untouched cards open forever',
+    kind: { type: 'boolean' },
+    codeDefault: true,
+    servedTo: ['cards'],
+  },
+  {
+    // With the above off, a live card nobody acts on for this many days closes as no response.
+    key: 'cards_close_after_days',
+    section: 'retention',
+    label: 'Days before an untouched card closes',
+    kind: { type: 'whole', min: 1, max: 36_500, unit: 'days' },
+    codeDefault: 10,
+    servedTo: ['cards'],
+  },
   // Jev scores new transcript lines and starts the card writer as soon as something
   // card-worthy is said; the cards service reads these four. Off, cards keep the cadence.
   {

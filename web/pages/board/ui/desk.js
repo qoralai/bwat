@@ -202,7 +202,8 @@ function paintMeetingInfo(s){const host=$('#meeting-meta');if(!host)return;host.
   if(m){if(!inZoom)return;const t=displayTime(m);if(t)bits.push(t);
     if(m.duration_min)bits.push(m.duration_min+' min');
   }
-  else if(!inZoom&&ids.length>1)bits.push(ids.map(meetingName).join(', '));
+  // A time window (Today, This week) holds too many meetings to name: say how many.
+  else if(!inZoom&&ids.length>1)bits.push(s.when?ids.length+' meetings':ids.map(meetingName).join(', '));
   // 9/30: no people, host, card count or "capturing now" -- the lens's Live dot
   // and the column counts already say so.
   if(!m)bits.push(n+(n===1?' card':' cards'));
